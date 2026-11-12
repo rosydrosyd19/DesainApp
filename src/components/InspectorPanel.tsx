@@ -30,6 +30,10 @@ import {
   Minus,
   Shapes,
   Grid,
+  Copy,
+  ArrowUpDown,
+  Move,
+  Server,
 } from 'lucide-react';
 import { Point } from '../types/schema.ts';
 
@@ -52,6 +56,11 @@ interface InspectorPanelProps {
   onUpdatePerangkat: (items: Perangkat[]) => void;
   onUpdateKabel: (items: KabelJalur[]) => void;
   onDeleteSelected: () => void;
+  onDuplicate?: () => void;
+  onAlign?: (
+    alignment: 'left' | 'center_h' | 'right' | 'top' | 'center_v' | 'bottom' | 'distribute_h' | 'distribute_v'
+  ) => void;
+  onSelectItem?: (item: { type: string; id: string } | null) => void;
   onClose?: () => void;
 }
 
@@ -74,6 +83,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onUpdatePerangkat,
   onUpdateKabel,
   onDeleteSelected,
+  onDuplicate,
+  onAlign,
+  onSelectItem,
   onClose,
 }) => {
   // 0. INSPECTOR MULTI-SELEKSI BANYAK OBJEK SEKALIGUS
@@ -101,6 +113,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 text-sky-400 hover:bg-sky-500/10 rounded-lg transition"
+                title="Duplikat Semua Objek Terpilih (Ctrl+D)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
@@ -173,6 +195,104 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             <p>• <strong>Hapus Bersamaan</strong>: Tekan tombol <code>Delete</code> / <code>Backspace</code> pada keyboard.</p>
             <p>• <strong>Batal Seleksi</strong>: Tekan <code>Escape</code> atau klik area kanvas kosong.</p>
           </div>
+
+          {/* Tombol Duplikat Grup Objek Terpilih */}
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={onDuplicate}
+              className="w-full py-2.5 bg-sky-600/25 hover:bg-sky-600/35 text-sky-200 border border-sky-500/40 rounded-xl font-medium flex items-center justify-center space-x-1.5 transition shadow cursor-pointer"
+            >
+              <Copy className="w-4 h-4 text-sky-400" />
+              <span>Duplikat Semua Terpilih (Ctrl+D)</span>
+            </button>
+          )}
+
+          {/* Kartu Perataan Objek (Align & Distribute) */}
+          {onAlign && countFurn + countDevs + countOpenings >= 2 && (
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2.5">
+              <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                <span>Ratakan Objek (Align)</span>
+                <span className="text-[10px] text-sky-400 font-normal">Furniture & Perangkat</span>
+              </div>
+
+              {/* Rata Horisontal */}
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onAlign('left')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Sisi Paling Kiri"
+                >
+                  ⇤ Kiri
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAlign('center_h')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Titik Tengah Horisontal"
+                >
+                  Tengah H
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAlign('right')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Sisi Paling Kanan"
+                >
+                  Kanan ⇥
+                </button>
+              </div>
+
+              {/* Rata Vertikal */}
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onAlign('top')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Sisi Paling Atas"
+                >
+                  ⤒ Atas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAlign('center_v')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Titik Tengah Vertikal"
+                >
+                  Tengah V
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAlign('bottom')}
+                  className="py-1.5 px-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-medium border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                  title="Ratakan ke Sisi Paling Bawah"
+                >
+                  Bawah ⤓
+                </button>
+              </div>
+
+              {/* Bagi Rata Jarak (Distribute Evenly) */}
+              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => onAlign('distribute_h')}
+                  className="py-1.5 px-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-medium border border-slate-750 flex items-center justify-center transition cursor-pointer"
+                  title="Bagi Rata Jarak Antar Objek Secara Horisontal"
+                >
+                  ↔ Bagi Rata Horisontal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAlign('distribute_v')}
+                  className="py-1.5 px-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-medium border border-slate-750 flex items-center justify-center transition cursor-pointer"
+                  title="Bagi Rata Jarak Antar Objek Secara Vertikal"
+                >
+                  ↕ Bagi Rata Vertikal
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
@@ -348,6 +468,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 text-sky-400 hover:bg-sky-500/10 rounded-lg transition"
+                title="Duplikat Ruangan Ini (Ctrl+D)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
@@ -383,6 +513,32 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 font-medium"
               placeholder="Contoh: Ruang Server, Ruang Staff, Aula..."
             />
+            {/* Petunjuk & Reset Posisi Label */}
+            <div className="mt-1.5 flex items-center justify-between p-2 rounded-lg bg-sky-950/30 border border-sky-800/30 text-[10px]">
+              <span className="text-slate-300">
+                {Boolean(room.label_offset_x || room.label_offset_y) ? '📍 Posisi label digeser manual' : '📍 Label di titik tengah ruangan'}
+              </span>
+              {Boolean(room.label_offset_x || room.label_offset_y) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onUpdateRuangan && ruangan) {
+                      onUpdateRuangan(
+                        ruangan.map((r) =>
+                          r.id === room.id ? { ...r, label_offset_x: 0, label_offset_y: 0 } : r
+                        )
+                      );
+                    }
+                  }}
+                  className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer"
+                  title="Kembalikan posisi teks label ke dalam ruangan secara otomatis"
+                >
+                  Reset ke Tengah
+                </button>
+              ) : (
+                <span className="text-slate-500 italic">Geser label di denah</span>
+              )}
+            </div>
           </div>
 
           {/* Pengaturan Ukuran Lebar & Panjang */}
@@ -560,6 +716,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 text-sky-400 hover:bg-sky-500/10 rounded-lg transition"
+                title="Duplikat Perangkat Ini (Ctrl+D)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
@@ -582,6 +748,53 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         </div>
 
         <div className="space-y-3 text-xs">
+          {/* Badge info: switch terpasang di rack mana */}
+          {dev.rack_id && (() => {
+            const parentRack = perangkat.find((p) => p.id === dev.rack_id);
+            return parentRack ? (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-sky-950/40 border border-sky-800/50">
+                <div className="flex items-center space-x-1.5">
+                  <Server className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <div>
+                    <div className="text-[10px] text-sky-300 font-semibold">Terpasang di Server Rack:</div>
+                    <div className="text-[11px] text-white font-bold truncate max-w-[140px]">{parentRack.nama_perangkat}</div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => onSelectItem?.({ type: 'perangkat', id: parentRack.id })}
+                    className="text-[10px] text-sky-400 hover:text-sky-300 font-semibold px-2 py-0.5 rounded hover:bg-sky-900/50 transition cursor-pointer border border-sky-800/50"
+                    title={`Buka properti ${parentRack.nama_perangkat}`}
+                  >
+                    Buka Rack
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdatePerangkat(
+                        perangkat.map((p) =>
+                          p.id === dev.id
+                            ? {
+                                ...p,
+                                rack_id: null,
+                                rack_u_position: null,
+                                posisi_x: parentRack.posisi_x + 60,
+                                posisi_y: parentRack.posisi_y + 15,
+                              }
+                            : p
+                        )
+                      );
+                    }}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-0.5 rounded hover:bg-rose-950/40 transition cursor-pointer"
+                    title="Lepaskan dari rack, kembali ke lantai"
+                  >
+                    Lepas dari Rack
+                  </button>
+                </div>
+              </div>
+            ) : null;
+          })()}
           <div>
             <label className="text-slate-400 block mb-1">Nama Perangkat / Hostname</label>
             <input
@@ -694,22 +907,156 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           )}
 
-          {/* Pengaturan Khusus Server Rack */}
+          {/* Pengaturan Khusus Server Rack: 42U Elevation & Virtual Switch Mounting */}
           {dev.kategori === 'rack_server' && (
-            <div>
-              <label className="text-slate-400 block mb-1">Ukuran Kapasitas Rak (U)</label>
-              <select
-                value={dev.rack_total_u || 42}
-                onChange={(e) => handleChange('rack_total_u', parseInt(e.target.value, 10))}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
-              >
-                <option value={42}>42U (Standing Server Rack)</option>
-                <option value={24}>24U (Standing Rack)</option>
-                <option value={15}>15U (Wallmount / Standing)</option>
-                <option value={12}>12U (Wallmount Rack)</option>
-                <option value={9}>9U (Wallmount Rack)</option>
-                <option value={6}>6U (Wallmount Mini)</option>
-              </select>
+            <div className="p-3 bg-blue-950/30 border border-blue-900/50 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-blue-400 flex items-center space-x-1.5">
+                  <Server className="w-3.5 h-3.5" />
+                  <span>Isi Rack Server (42U Elevation)</span>
+                </div>
+                <div className="text-[10px] text-blue-300 font-mono bg-blue-900/40 px-2 py-0.5 rounded border border-blue-800/40">
+                  {dev.rack_total_u || 42}U
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">Ukuran Kapasitas Rak (U)</label>
+                <select
+                  value={dev.rack_total_u || 42}
+                  onChange={(e) => handleChange('rack_total_u', parseInt(e.target.value, 10))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+                >
+                  <option value={42}>42U (Standing Server Rack)</option>
+                  <option value={24}>24U (Standing Rack)</option>
+                  <option value={15}>15U (Wallmount / Standing)</option>
+                  <option value={12}>12U (Wallmount Rack)</option>
+                  <option value={9}>9U (Wallmount Rack)</option>
+                  <option value={6}>6U (Wallmount Mini)</option>
+                </select>
+              </div>
+
+              <div className="text-[10px] text-slate-400 leading-relaxed">
+                💡 <strong>Solusi Ruang Denah:</strong> Switch dan perangkat IT dipasang ke dalam rack ini secara virtual. Denah tetap bersih dan kabel otomatis terhubung ke rack.
+              </div>
+
+              {/* Daftar Switch yang Terpasang */}
+              {(() => {
+                const mounted = perangkat.filter((p) => p.rack_id === dev.id);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                      <span>Perangkat Terpasang ({mounted.length} Unit):</span>
+                    </div>
+
+                    {mounted.length === 0 ? (
+                      <div className="p-2.5 rounded-lg border border-dashed border-slate-700 bg-slate-900/40 text-center text-[10px] text-slate-400">
+                        Belum ada switch yang dipasang di rack ini.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {mounted.map((m, idx) => (
+                          <div
+                            key={m.id}
+                            className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <span className="font-mono text-[10px] font-bold text-sky-400 bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-800/40">
+                                U{m.rack_u_position || (42 - idx * 2)}
+                              </span>
+                              <div className="min-w-0 truncate">
+                                <div className="font-semibold text-slate-200 truncate">{m.nama_perangkat}</div>
+                                <div className="text-[10px] text-slate-400">{m.model_merk || m.kategori}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-1 shrink-0 ml-1">
+                              {/* Tombol Buka: pilih switch ini di Inspector */}
+                              <button
+                                type="button"
+                                onClick={() => onSelectItem?.({ type: 'perangkat', id: m.id })}
+                                className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded hover:bg-sky-950/40 transition cursor-pointer font-semibold"
+                                title={`Buka properti ${m.nama_perangkat} di Inspector`}
+                              >
+                                Buka
+                              </button>
+                              {/* Tombol Lepas */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onUpdatePerangkat(
+                                    perangkat.map((p) =>
+                                      p.id === m.id
+                                        ? {
+                                            ...p,
+                                            rack_id: null,
+                                            rack_u_position: null,
+                                            posisi_x: dev.posisi_x + 60,
+                                            posisi_y: dev.posisi_y + 15,
+                                          }
+                                        : p
+                                    )
+                                  );
+                                }}
+                                className="text-[10px] text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded hover:bg-rose-950/40 transition cursor-pointer"
+                                title="Keluarkan dari Rack dan kembalikan ke lantai"
+                              >
+                                Lepas
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Pasang Switch ke Rack Ini */}
+                    <div className="pt-2 border-t border-slate-800">
+                      <label className="text-[10px] text-slate-400 block mb-1">
+                        + Pasang Switch / Server ke Rack:
+                      </label>
+                      <select
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-sky-500 cursor-pointer"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const targetId = e.target.value;
+                          if (!targetId) return;
+                          const nextU = Math.max(1, 42 - mounted.length * 2);
+                          onUpdatePerangkat(
+                            perangkat.map((p) =>
+                              p.id === targetId
+                                ? {
+                                    ...p,
+                                    rack_id: dev.id,
+                                    rack_u_position: nextU,
+                                    posisi_x: dev.posisi_x,
+                                    posisi_y: dev.posisi_y,
+                                  }
+                                : p
+                            )
+                          );
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">Pilih Switch yang tersedia...</option>
+                        {perangkat
+                          .filter(
+                            (p) =>
+                              p.id !== dev.id &&
+                              p.rack_id !== dev.id &&
+                              (p.kategori === 'switch' ||
+                                p.kategori === 'server' ||
+                                p.kategori === 'patch_panel' ||
+                                p.kategori === 'nvr_dvr')
+                          )
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nama_perangkat} ({p.model_merk || p.kategori})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -724,6 +1071,41 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <div className="text-[10px] text-cyan-300/80 bg-cyan-900/40 px-2 py-0.5 rounded-full border border-cyan-800/50">
                   Auto-Detect + Note
                 </div>
+              </div>
+
+              {/* Penampung Server Rack (Opsional) */}
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Pasang ke Server Rack (Opsional)</label>
+                <select
+                  value={dev.rack_id || ''}
+                  onChange={(e) => {
+                    const rId = e.target.value || null;
+                    handleChange('rack_id', rId);
+                    if (rId) {
+                      const rDev = perangkat.find((p) => p.id === rId);
+                      if (rDev) {
+                        handleChange('posisi_x', rDev.posisi_x);
+                        handleChange('posisi_y', rDev.posisi_y);
+                      }
+                    } else if (dev.rack_id) {
+                      const oldRack = perangkat.find((p) => p.id === dev.rack_id);
+                      if (oldRack) {
+                        handleChange('posisi_x', oldRack.posisi_x + 60);
+                        handleChange('posisi_y', oldRack.posisi_y + 15);
+                      }
+                    }
+                  }}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  <option value="">Tidak terpasang di Rack (Stand-alone di Meja/Dinding)</option>
+                  {perangkat
+                    .filter((p) => p.kategori === 'rack_server' && p.id !== dev.id)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        🏢 {r.nama_perangkat} ({r.rack_total_u || 42}U Rack)
+                      </option>
+                    ))}
+                </select>
               </div>
 
               {/* Pilihan Jumlah Port Switch */}
@@ -907,11 +1289,23 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
           <div className="flex items-center space-x-2">
             <Square className="w-5 h-5 text-sky-400" />
             <div>
-              <div className="text-sm font-semibold text-slate-100">Meja & Workstation</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {item.tipe.startsWith('tangga') ? 'Tangga Arsitektur' : 'Meja & Workstation'}
+              </div>
               <div className="text-[10px] text-slate-400">{item.id}</div>
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 text-sky-400 hover:bg-sky-500/10 rounded-lg transition"
+                title="Duplikat Furniture Ini (Ctrl+D)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
@@ -934,6 +1328,58 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         </div>
 
         <div className="space-y-3 text-xs">
+          {/* Kontrol Khusus Tangga Arsitektur */}
+          {item.tipe.startsWith('tangga') && (
+            <div className="p-3 bg-amber-950/25 border border-amber-900/40 rounded-xl space-y-2.5">
+              <div className="text-xs font-semibold text-amber-400 flex items-center space-x-1.5">
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span>Arah Alur & Trap Tangga</span>
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Arah Tangga Antar Lantai</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('tangga_arah', 'naik')}
+                    className={`py-1.5 px-2 rounded-lg text-center text-xs font-semibold transition border cursor-pointer ${
+                      (item.tangga_arah || 'naik') === 'naik'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    ↑ NAIK KE L2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('tangga_arah', 'turun')}
+                    className={`py-1.5 px-2 rounded-lg text-center text-xs font-semibold transition border cursor-pointer ${
+                      item.tangga_arah === 'turun'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    ↓ TURUN KE L1
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Jumlah Trap Anak Tangga</span>
+                  <span className="font-bold text-amber-400">{item.tangga_jumlah_anak || 16} Trap</span>
+                </div>
+                <input
+                  type="range"
+                  min="8"
+                  max="24"
+                  step="1"
+                  value={item.tangga_jumlah_anak || 16}
+                  onChange={(e) => handleChange('tangga_jumlah_anak', parseInt(e.target.value, 10))}
+                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-slate-400 block mb-1">Label Meja</label>
             <input
@@ -1770,6 +2216,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 text-sky-400 hover:bg-sky-500/10 rounded-lg transition"
+                title="Duplikat Pintu / Jendela Ini (Ctrl+D)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDeleteSelected}
@@ -1944,6 +2400,45 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               <span>180° (Bawah)</span>
               <span>270° (Kiri)</span>
             </div>
+
+            {/* Fitur Mirror Pintu (Buka Kiri/Kanan & Dalam/Luar) */}
+            {item.tipe !== 'jendela' && (
+              <div className="pt-2.5 mt-2.5 border-t border-slate-800 space-y-1.5">
+                <div className="flex justify-between text-slate-300 font-semibold text-[11px]">
+                  <span>Mirror Engsel & Arah Swing</span>
+                  <span className="text-[10px] text-amber-400 font-normal">Kiri ↔ Kanan</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('flip_x', !item.flip_x)}
+                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer ${
+                      item.flip_x
+                        ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 shadow-sm'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                    }`}
+                    title="Balik Sisi Engsel Pintu (Kiri ↔ Kanan)"
+                  >
+                    <span>↔</span>
+                    <span>{item.flip_x ? 'Buka Kanan' : 'Buka Kiri'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleChange('flip_y', !item.flip_y)}
+                    className={`py-2 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer ${
+                      item.flip_y
+                        ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 shadow-sm'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                    }`}
+                    title="Balik Arah Hadap Swing (Dalam ↕ Luar)"
+                  >
+                    <span>↕</span>
+                    <span>{item.flip_y ? 'Buka Luar' : 'Buka Dalam'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Panduan Interaktif di Kanvas */}

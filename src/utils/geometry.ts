@@ -116,3 +116,62 @@ export function calculatePolygonArea(polygon: Point[], scalePxPerMeter: number):
   const areaM2 = areaPx / (scalePxPerMeter * scalePxPerMeter);
   return Number(areaM2.toFixed(2));
 }
+
+// Hitung Titik Tengah Visual Ruangan (Pole of Inaccessibility)
+// Memastikan posisi teks nama zona selalu berada 100% di DALAM ruangan,
+// termasuk untuk ruangan bentuk L, U, T, atau bentuk tidak beraturan.
+export function getRoomVisualCenter(polygon: Point[]): Point {
+  if (!polygon || polygon.length === 0) return { x: 0, y: 0 };
+  if (polygon.length < 3) return { x: polygon[0].x, y: polygon[0].y };
+
+  const xs = polygon.map((p) => p.x);
+  const ys = polygon.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const boxMidX = (minX + maxX) / 2;
+  const boxMidY = (minY + maxY) / 2;
+  const boxCenter = { x: boxMidX, y: boxMidY };
+
+  // Helper jarak terdekat titik ke seluruh segmen dinding ruangan
+  const getMinDistToWalls = (pt: Point): number => {
+    let minDist = Infinity;
+    for (let i = 0; i < polygon.length; i++) {
+      const j = (i + 1) % polygon.length;
+      const d = distToSegment(pt, polygon[i], polygon[j]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  };
+
+  let bestPoint: Point = boxCenter;
+  let maxClearance = -Infinity;
+
+  // Jika titik tengah kotak berada di dalam ruangan (misal ruangan kotak biasa)
+  if (isPointInPolygon(boxCenter, polygon)) {
+    bestPoint = boxCenter;
+    maxClearance = getMinDistToWalls(boxCenter);
+  }
+
+  // Scan grid interior di dalam poligon untuk menemukan titik paling lapang dan bebas dari tepi dinding
+  // (Solusi sempurna untuk ruangan bentuk L atau U di mana titik tengah kotak berada di luar ruangan)
+  const steps = 15;
+  const stepX = (maxX - minX) / steps;
+  const stepY = (maxY - minY) / steps;
+
+  for (let i = 1; i < steps; i++) {
+    for (let j = 1; j < steps; j++) {
+      const candidate: Point = { x: minX + i * stepX, y: minY + j * stepY };
+      if (isPointInPolygon(candidate, polygon)) {
+        const clearance = getMinDistToWalls(candidate);
+        if (clearance > maxClearance) {
+          maxClearance = clearance;
+          bestPoint = candidate;
+        }
+      }
+    }
+  }
+
+  return bestPoint;
+}

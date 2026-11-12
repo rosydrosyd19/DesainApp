@@ -382,6 +382,55 @@ export const SidebarCatalog: React.FC<SidebarCatalogProps> = ({
               </div>
             </button>
 
+            {/* Komponen Tangga Penghubung Lantai 1 & 2 */}
+            <div className="pt-2 text-xs text-slate-400 font-semibold">Tangga & Penghubung Lantai:</div>
+
+            <button
+              type="button"
+              onClick={() =>
+                onSelectTool('place_furniture', {
+                  tipe: 'tangga_lurus',
+                  label: 'Tangga Utama',
+                  lebar_cm: 120,
+                  panjang_cm: 300,
+                  tangga_arah: 'naik',
+                  tangga_jumlah_anak: 16,
+                })
+              }
+              className="w-full p-2.5 flex items-center space-x-3 rounded-lg border border-amber-900/40 bg-amber-950/20 hover:bg-amber-950/40 text-left transition group"
+            >
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 group-hover:scale-105 transition">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-amber-300">Tangga Lurus (Naik / Turun)</div>
+                <div className="text-[10px] text-slate-400">16 anak tangga + panah arah CAD arsitektur</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                onSelectTool('place_furniture', {
+                  tipe: 'tangga_u',
+                  label: 'Tangga Bordes (U-Shape)',
+                  lebar_cm: 200,
+                  panjang_cm: 260,
+                  tangga_arah: 'naik',
+                  tangga_jumlah_anak: 18,
+                })
+              }
+              className="w-full p-2.5 flex items-center space-x-3 rounded-lg border border-amber-900/40 bg-amber-950/20 hover:bg-amber-950/40 text-left transition group"
+            >
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 group-hover:scale-105 transition">
+                <Grid className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-amber-300">Tangga U-Shape (dengan Bordes)</div>
+                <div className="text-[10px] text-slate-400">Tangga putar 180° untuk gedung bertingkat</div>
+              </div>
+            </button>
+
             {/* Zonasi Ruangan */}
             <div className="pt-2 text-xs text-slate-400 font-semibold">Zonasi Ruang & Area:</div>
 

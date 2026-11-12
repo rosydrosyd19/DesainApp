@@ -14,7 +14,8 @@ export type ToolType =
   | 'place_room'
   | 'room_polygon';
 
-export type LayerVisibility = 'all' | 'dinding' | 'ruangan' | 'kabel' | 'perangkat' | 'furniture';
+export type LayerCategory = 'dinding' | 'ruangan' | 'kabel' | 'perangkat' | 'furniture';
+export type LayerVisibility = 'all' | LayerCategory | LayerCategory[];
 
 export interface Point {
   x: number;
@@ -62,6 +63,8 @@ export interface Bukaan {
   posisi_y: number;
   lebar_cm: number;
   rotasi: number;
+  flip_x?: boolean; // Mirror horizontal (buka kiri vs kanan)
+  flip_y?: boolean; // Mirror vertikal (buka dalam vs luar)
 }
 
 export interface Ruangan {
@@ -70,12 +73,14 @@ export interface Ruangan {
   nama_ruangan: string;
   polygon_points: Point[];
   warna_area: string;
+  label_offset_x?: number; // Offset posisi teks label nama ruangan dari titik tengah (centroid)
+  label_offset_y?: number;
 }
 
 export interface Furniture {
   id: string;
   lantai_id: string;
-  tipe: 'meja_tunggal' | 'meja_l' | 'cubicle_4' | 'meja_rapat' | 'kursi';
+  tipe: 'meja_tunggal' | 'meja_l' | 'cubicle_4' | 'meja_rapat' | 'kursi' | 'tangga_lurus' | 'tangga_l' | 'tangga_u';
   label: string;
   pemilik_client: string; // Nama staff / Divisi client pemakai
   posisi_x: number;
@@ -83,6 +88,8 @@ export interface Furniture {
   lebar_cm: number;
   panjang_cm: number;
   rotasi: number;
+  tangga_arah?: 'naik' | 'turun'; // Arah tangga lantai (Naik ke L2 atau Turun ke L1)
+  tangga_jumlah_anak?: number; // Jumlah trap anak tangga
 }
 
 export type PerangkatKategori =
@@ -117,6 +124,9 @@ export interface Perangkat {
   ap_radius_meter?: number; // Radius sinyal Wi-Fi (default 12 meter)
   // Spesifik Server Rack
   rack_total_u?: number; // misal 42U
+  // Virtual Rack Mounting (Asosiasi Switch / Patch Panel / Server ke Rack)
+  rack_id?: string | null; // ID rack server penampung perangkat ini
+  rack_u_position?: number | null; // Posisi nomor U dalam rack (misal: U40, U38, dst)
   // Spesifik Switch Network
   switch_total_port?: number; // Jumlah total port switch (8, 16, 24, 48)
   port_notes?: Record<number, string>; // Catatan / label / VLAN per nomor port switch

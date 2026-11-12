@@ -537,8 +537,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Menu Dropdown Pilihan Mode Layar 2 (Click Toggle - Tidak hilang saat kursor mendekat) */}
           {isDualMenuOpen && (
-            <div className="absolute right-0 top-full pt-1.5 w-72 z-50">
-              <div className="bg-slate-900/98 border border-slate-700/90 rounded-xl shadow-2xl p-2 space-y-1.5 backdrop-blur-sm">
+            <div className="absolute right-0 top-full pt-1.5 z-50" style={{ minWidth: '260px', maxWidth: 'calc(100vw - 16px)' }}>
+              <div className="bg-slate-900/98 border border-slate-700/90 rounded-xl shadow-2xl p-2 space-y-1.5 backdrop-blur-sm" style={{ minWidth: '260px' }}>
                 <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800 flex justify-between items-center">
                   <span>Pilihan Mode Layar 2</span>
                   <span className="text-[9px] bg-slate-800 px-1 py-0.2 rounded text-slate-400">[L]</span>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Proyek,
   Lantai,
@@ -11,7 +11,7 @@ import {
   KabelTipe,
 } from '../types/schema.ts';
 import { generateWhitePaperBlueprint } from '../utils/exportBlueprint.ts';
-import { Maximize2, X, Download } from 'lucide-react';
+import { Maximize2, X, Download, Grid, FileText } from 'lucide-react';
 
 interface PresentationViewProps {
   proyek: Proyek | null;
@@ -42,9 +42,10 @@ export const PresentationView: React.FC<PresentationViewProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasHolderRef = useRef<HTMLDivElement>(null);
+  const [showGrid, setShowGrid] = useState(false);
 
   useEffect(() => {
-    // Generate blueprint kertas putih real-time
+    // Generate blueprint kertas putih real-time, dengan/tanpa grid sesuai state
     const blueprintCanvas = generateWhitePaperBlueprint({
       proyek,
       lantai,
@@ -56,6 +57,7 @@ export const PresentationView: React.FC<PresentationViewProps> = ({
       kabel,
       kabelTipe,
       scalePxPerMeter,
+      includeGrid: showGrid,
     });
 
     blueprintCanvas.style.maxWidth = '100%';
@@ -68,7 +70,7 @@ export const PresentationView: React.FC<PresentationViewProps> = ({
       canvasHolderRef.current.innerHTML = '';
       canvasHolderRef.current.appendChild(blueprintCanvas);
     }
-  }, [proyek, lantai, dinding, bukaan, ruangan, furniture, perangkat, kabel, kabelTipe, scalePxPerMeter]);
+  }, [proyek, lantai, dinding, bukaan, ruangan, furniture, perangkat, kabel, kabelTipe, scalePxPerMeter, showGrid]);
 
   const handleDownload = () => {
     const blueprintCanvas = generateWhitePaperBlueprint({
@@ -82,6 +84,7 @@ export const PresentationView: React.FC<PresentationViewProps> = ({
       kabel,
       kabelTipe,
       scalePxPerMeter,
+      includeGrid: showGrid,
     });
     const doc = containerRef.current?.ownerDocument || document;
     const link = doc.createElement('a');
@@ -118,6 +121,21 @@ export const PresentationView: React.FC<PresentationViewProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Tombol Toggle Grid */}
+          <button
+            type="button"
+            onClick={() => setShowGrid((v) => !v)}
+            className={`px-2.5 py-1 rounded text-xs flex items-center space-x-1 border transition ${
+              showGrid
+                ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+            }`}
+            title={showGrid ? 'Sembunyikan Grid CAD' : 'Tampilkan Grid CAD'}
+          >
+            <Grid className="w-3.5 h-3.5 text-sky-400" />
+            <span>{showGrid ? 'Sembunyikan Grid' : 'Tampilkan Grid'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleDownload}

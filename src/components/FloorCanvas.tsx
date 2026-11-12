@@ -24,6 +24,7 @@ import {
   isPointInPolygon,
   isPointInBox,
   calculatePolygonArea,
+  getRoomVisualCenter,
 } from '../utils/geometry.ts';
 
 interface FloorCanvasProps {
@@ -67,6 +68,7 @@ interface FloorCanvasProps {
   theme?: 'dark' | 'light';
   layerVisibility?: LayerVisibility;
   onSelectLayerVisibility?: (layer: LayerVisibility) => void;
+  onDuplicate?: () => void;
 }
 
 export const FloorCanvas: React.FC<FloorCanvasProps> = ({
@@ -110,14 +112,19 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
   theme = 'dark',
   layerVisibility = 'all',
   onSelectLayerVisibility,
+  onDuplicate,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Dynamic high-contrast highlight color for Dark / Light mode (Perbaikan biru samar di light mode)
+  const highlightColor = theme === 'light' ? '#0284c7' : '#38bdf8';
 
   // Ref & State untuk Gambar Jiplakan Denah (Tracing Underlay)
   const tracingImgRef = useRef<HTMLImageElement | null>(null);
   const [isTracingImgLoaded, setIsTracingImgLoaded] = useState(false);
   const [isDraggingTracing, setIsDraggingTracing] = useState(false);
+  const [isResizingTracing, setIsResizingTracing] = useState<'nw' | 'ne' | 'se' | 'sw' | null>(null);
   const [dragTracingStart, setDragTracingStart] = useState<Point | null>(null);
   const [calibPoints, setCalibPoints] = useState<Point[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -234,6 +241,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
   const [draggingRoomHandle, setDraggingRoomHandle] = useState<string | null>(null);
   const [dragRoomStartWorld, setDragRoomStartWorld] = useState<Point>({ x: 0, y: 0 });
   const [dragRoomOrigPoints, setDragRoomOrigPoints] = useState<Point[]>([]);
+  const [dragRoomOrigLabelOffset, setDragRoomOrigLabelOffset] = useState<Point>({ x: 0, y: 0 });
 
   // Helper cek apakah suatu elemen sedang dipilih (baik single maupun multi-select)
   const isItemSelected = (type: string, id: string): boolean => {
@@ -299,38 +307,44 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       drawUnderlay(ctx, underlayDinding, underlayRuangan, scalePxPerMeter);
     }
 
+    const isLayerActive = (layer: 'dinding' | 'ruangan' | 'kabel' | 'perangkat' | 'furniture') => {
+      if (!layerVisibility || layerVisibility === 'all') return true;
+      if (Array.isArray(layerVisibility)) return layerVisibility.includes(layer);
+      return layerVisibility === layer;
+    };
+
     // 1.5. Gambar Zonasi Ruangan (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'ruangan') {
+    if (isLayerActive('ruangan')) {
       drawRooms(ctx, ruangan);
     }
 
     // 2. Gambar Kerucut CCTV FOV & Radius AP Wi-Fi (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'perangkat') {
+    if (isLayerActive('perangkat')) {
       drawCoverageAreas(ctx, perangkat, scalePxPerMeter);
     }
 
     // 3. Gambar Dinding Bangunan (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'dinding') {
+    if (isLayerActive('dinding')) {
       drawWalls(ctx, dinding, scalePxPerMeter, selectedItem);
     }
 
     // 4. Gambar Bukaan (Pintu & Jendela) (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'dinding') {
+    if (isLayerActive('dinding')) {
       drawOpenings(ctx, bukaan, scalePxPerMeter, selectedItem);
     }
 
-    // 5. Gambar Furniture (Meja Client, Kursi) (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'furniture') {
+    // 5. Gambar Furniture & Tangga (Filter Layer)
+    if (isLayerActive('furniture')) {
       drawFurniture(ctx, furniture, scalePxPerMeter, selectedItem);
     }
 
     // 6. Gambar Jalur Kabel Internet & Jaringan (Tampil di atas Dinding & Furniture) (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'kabel') {
+    if (isLayerActive('kabel')) {
       drawCables(ctx, kabel, kabelTipe, scalePxPerMeter, selectedItem);
     }
 
     // 7. Gambar Perangkat IT & CCTV & AP & Server Rack (Filter Layer)
-    if (layerVisibility === 'all' || layerVisibility === 'perangkat') {
+    if (isLayerActive('perangkat')) {
       drawDevices(ctx, perangkat, scalePxPerMeter, selectedItem);
     }
 
@@ -440,20 +454,29 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
 
     ctx.drawImage(img, 0, 0, w, h);
 
-    // Jika posisi belum terkunci (Unlock), gambar bingkai putus-putus dan handle sudut agar pengguna tahu gambar bisa digeser
+    // Jika posisi belum terkunci (Unlock), gambar bingkai putus-putus dan 4 handle sudut resize
     if (!j.is_locked) {
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.5 / zoom;
+      ctx.strokeStyle = highlightColor;
+      ctx.lineWidth = 2 / zoom;
       ctx.setLineDash([6 / zoom, 6 / zoom]);
       ctx.strokeRect(0, 0, w, h);
       ctx.setLineDash([]);
 
-      const handleSize = 8 / zoom;
-      ctx.fillStyle = '#0284c7';
-      ctx.fillRect(-handleSize / 2, -handleSize / 2, handleSize, handleSize);
-      ctx.fillRect(w - handleSize / 2, -handleSize / 2, handleSize, handleSize);
-      ctx.fillRect(w - handleSize / 2, h - handleSize / 2, handleSize, handleSize);
-      ctx.fillRect(-handleSize / 2, h - handleSize / 2, handleSize, handleSize);
+      const handleSize = 10 / zoom;
+      ctx.fillStyle = '#ec4899';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 / zoom;
+
+      // 4 Handle Sudut Resize (NW, NE, SE, SW)
+      [
+        { x: 0, y: 0 },
+        { x: w, y: 0 },
+        { x: w, y: h },
+        { x: 0, y: h },
+      ].forEach((p) => {
+        ctx.fillRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
+        ctx.strokeRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
+      });
     }
     ctx.restore();
   };
@@ -534,11 +557,15 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       ctx.closePath();
 
       // Warna fill ruangan (lebih tegas jika dipilih)
-      ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.22)' : (r.warna_area || 'rgba(56, 189, 248, 0.08)');
+      ctx.fillStyle = isSel
+        ? theme === 'light'
+          ? 'rgba(2, 132, 199, 0.18)'
+          : 'rgba(56, 189, 248, 0.22)'
+        : (r.warna_area || (theme === 'light' ? 'rgba(2, 132, 199, 0.07)' : 'rgba(56, 189, 248, 0.08)'));
       ctx.fill();
 
       // Garis border ruangan
-      ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(148, 163, 184, 0.35)';
+      ctx.strokeStyle = isSel ? highlightColor : 'rgba(148, 163, 184, 0.35)';
       ctx.lineWidth = isSel ? 2 : 1.2;
       if (!isSel) {
         ctx.setLineDash([5, 5]);
@@ -557,21 +584,75 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       const heightM = (maxY - minY) / scalePxPerMeter;
       const luasM2 = calculatePolygonArea(r.polygon_points, scalePxPerMeter);
 
-      const avgX = (minX + maxX) / 2;
-      const avgY = (minY + maxY) / 2;
+      // Titik Tengah Visual Ruangan (Pole of Inaccessibility)
+      // Dijamin selalu berada di DALAM ruangan termasuk bentuk L, U, atau poligon non-kotak
+      const visualCenter = getRoomVisualCenter(r.polygon_points);
 
-      // Label Nama Ruangan & Luas m2
+      // Posisi Label dengan custom offset (bisa digeser bebas agar tidak menghalangi item lain)
+      const labelX = visualCenter.x + (r.label_offset_x || 0);
+      const labelY = visualCenter.y + (r.label_offset_y || 0);
+
+      // Jika posisi label digeser dari tengah ruangan, gambar garis penghubung putus-putus
+      if ((r.label_offset_x || 0) !== 0 || (r.label_offset_y || 0) !== 0) {
+        ctx.save();
+        ctx.strokeStyle = isSel ? highlightColor : 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 1 / zoom;
+        ctx.setLineDash([4 / zoom, 4 / zoom]);
+        ctx.beginPath();
+        ctx.moveTo(visualCenter.x, visualCenter.y);
+        ctx.lineTo(labelX, labelY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Titik jangkar tengah
+        ctx.beginPath();
+        ctx.arc(visualCenter.x, visualCenter.y, 3 / zoom, 0, Math.PI * 2);
+        ctx.fillStyle = isSel ? highlightColor : '#94a3b8';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Label Nama Ruangan & Ukuran m2
       ctx.save();
-      ctx.translate(avgX, avgY);
+      ctx.translate(labelX, labelY);
+      const textName = r.nama_ruangan.toUpperCase();
+      const textDim = `${widthM.toFixed(1)}m × ${heightM.toFixed(1)}m (${luasM2.toFixed(1)} m²)`;
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillStyle = isSel ? '#38bdf8' : '#e2e8f0';
+      const tw1 = ctx.measureText(textName).width;
+      ctx.font = 'bold 10px sans-serif';
+      const tw2 = ctx.measureText(textDim).width;
+      const pillW = Math.max(tw1, tw2) + 24;
+      const pillH = 34;
+
+      // Badge latar belakang label (semi-transparan agar selalu terbaca jelas dan mudah diklik/geser)
+      ctx.fillStyle = isSel
+        ? (theme === 'light' ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.92)')
+        : (theme === 'light' ? 'rgba(255, 255, 255, 0.78)' : 'rgba(15, 23, 42, 0.75)');
+      ctx.strokeStyle = isSel ? highlightColor : (theme === 'light' ? 'rgba(203, 213, 225, 0.7)' : 'rgba(51, 65, 85, 0.7)');
+      ctx.lineWidth = (isSel ? 1.5 : 1) / zoom;
+      ctx.beginPath();
+      ctx.roundRect(-pillW / 2, -pillH / 2, pillW, pillH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      if (isSel) {
+        // Ikon pegangan geser label
+        ctx.fillStyle = highlightColor;
+        ctx.font = '10px sans-serif';
+        ctx.fillText('✥', -pillW / 2 + 10, 0);
+      }
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = isSel ? highlightColor : (theme === 'light' ? '#0f172a' : '#f8fafc');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(r.nama_ruangan.toUpperCase(), 0, -8);
+      ctx.fillText(textName, isSel ? 6 : 0, -8);
 
       ctx.font = 'bold 10px sans-serif';
-      ctx.fillStyle = isSel ? '#7dd3fc' : '#94a3b8';
-      ctx.fillText(`${widthM.toFixed(1)}m × ${heightM.toFixed(1)}m (${luasM2.toFixed(1)} m²)`, 0, 10);
+      ctx.fillStyle = isSel
+        ? (theme === 'light' ? '#0369a1' : '#7dd3fc')
+        : (theme === 'light' ? '#475569' : '#94a3b8');
+      ctx.fillText(textDim, isSel ? 6 : 0, 8);
       ctx.restore();
 
       // Jika ruangan sedang dipilih, gambar Corner Handles untuk setiap titik sudut poligon
@@ -579,7 +660,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         r.polygon_points.forEach((pt, i) => {
           ctx.beginPath();
           ctx.arc(pt.x, pt.y, 6 / zoom, 0, Math.PI * 2);
-          ctx.fillStyle = '#38bdf8';
+          ctx.fillStyle = highlightColor;
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2 / zoom;
@@ -588,7 +669,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           // Nomor urut sudut poligon
           ctx.save();
           ctx.font = `bold ${Math.max(9, 10 / zoom)}px sans-serif`;
-          ctx.fillStyle = '#0284c7';
+          ctx.fillStyle = highlightColor;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(String(i + 1), pt.x, pt.y - 12 / zoom);
@@ -842,15 +923,20 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       ctx.translate(b.posisi_x, b.posisi_y);
       ctx.rotate((b.rotasi * Math.PI) / 180);
 
+      // Fitur Mirror Engsel (flip_x: kiri/kanan) dan Mirror Swing (flip_y: luar/dalam)
+      const flipX = b.flip_x ? -1 : 1;
+      const flipY = b.flip_y ? -1 : 1;
+      ctx.scale(flipX, flipY);
+
       if (b.tipe === 'pintu_tunggal') {
         // 1. PINTU TUNGGAL SWING
         // Kusen / Frame
-        ctx.fillStyle = isSel ? '#38bdf8' : '#64748b';
+        ctx.fillStyle = isSel ? highlightColor : '#64748b';
         ctx.fillRect(-halfW - 3, -4, 6, 8);
         ctx.fillRect(halfW - 3, -4, 6, 8);
 
         // Daun Pintu Tebal
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f8fafc';
+        ctx.strokeStyle = isSel ? highlightColor : '#f8fafc';
         ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.moveTo(-halfW, 0);
@@ -860,19 +946,19 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         // Lengkungan Swing Pintu
         ctx.beginPath();
         ctx.arc(-halfW, 0, widthPx, -Math.PI / 2, 0, false);
-        ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(226, 232, 240, 0.45)';
+        ctx.strokeStyle = isSel ? highlightColor : 'rgba(226, 232, 240, 0.45)';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
       } else if (b.tipe === 'pintu_ganda') {
         // 2. PINTU GANDA (DOUBLE SWING)
-        ctx.fillStyle = isSel ? '#38bdf8' : '#64748b';
+        ctx.fillStyle = isSel ? highlightColor : '#64748b';
         ctx.fillRect(-halfW - 3, -4, 6, 8);
         ctx.fillRect(halfW - 3, -4, 6, 8);
 
         // Daun Kiri (Setengah Lebar)
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f8fafc';
+        ctx.strokeStyle = isSel ? highlightColor : '#f8fafc';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(-halfW, 0);
@@ -881,14 +967,14 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
 
         ctx.beginPath();
         ctx.arc(-halfW, 0, halfW, -Math.PI / 2, 0, false);
-        ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(226, 232, 240, 0.45)';
+        ctx.strokeStyle = isSel ? highlightColor : 'rgba(226, 232, 240, 0.45)';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([3, 3]);
         ctx.stroke();
         ctx.setLineDash([]);
 
         // Daun Kanan (Setengah Lebar)
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f8fafc';
+        ctx.strokeStyle = isSel ? highlightColor : '#f8fafc';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(halfW, 0);
@@ -897,22 +983,22 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
 
         ctx.beginPath();
         ctx.arc(halfW, 0, halfW, -Math.PI / 2, -Math.PI, true);
-        ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(226, 232, 240, 0.45)';
+        ctx.strokeStyle = isSel ? highlightColor : 'rgba(226, 232, 240, 0.45)';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([3, 3]);
         ctx.stroke();
         ctx.setLineDash([]);
       } else if (b.tipe === 'pintu_geser') {
         // 3. PINTU GESER (SLIDING DOOR)
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#64748b';
+        ctx.strokeStyle = isSel ? highlightColor : '#64748b';
         ctx.lineWidth = 2;
         ctx.strokeRect(-halfW, -5, widthPx, 10);
 
-        ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(203, 213, 225, 0.2)';
+        ctx.fillStyle = isSel ? 'rgba(2, 132, 199, 0.25)' : 'rgba(203, 213, 225, 0.2)';
         ctx.fillRect(-halfW, -5, widthPx, 10);
 
         // Daun geser 1 & 2
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f8fafc';
+        ctx.strokeStyle = isSel ? highlightColor : '#f8fafc';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(-halfW + 4, -2);
@@ -926,9 +1012,9 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       } else {
         // 4. JENDELA KACA
         // Kusen Jendela
-        ctx.fillStyle = isSel ? '#0284c7' : '#334155';
+        ctx.fillStyle = isSel ? highlightColor : '#334155';
         ctx.fillRect(-halfW, -4, widthPx, 8);
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#64748b';
+        ctx.strokeStyle = isSel ? highlightColor : '#64748b';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(-halfW, -4, widthPx, 8);
 
@@ -936,7 +1022,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
         ctx.fillRect(-halfW + 2, -2, widthPx - 4, 4);
 
-        ctx.strokeStyle = '#38bdf8';
+        ctx.strokeStyle = highlightColor;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(-halfW + 3, -1);
@@ -947,8 +1033,11 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       }
 
       // Badge Ukuran & Rotasi Tertera
-      const label = `${b.tipe === 'jendela' ? 'Jendela' : 'Pintu'}: ${b.lebar_cm}cm (${b.rotasi}°)`;
+      const mirrorStatus = `${b.flip_x ? ' ↔' : ''}${b.flip_y ? ' ↕' : ''}`;
+      const label = `${b.tipe === 'jendela' ? 'Jendela' : 'Pintu'}: ${b.lebar_cm}cm (${b.rotasi}°)${mirrorStatus}`;
       ctx.save();
+      // Batalkan flip saat menggambar teks agar teks tidak terbalik
+      ctx.scale(flipX, flipY);
       const badgeY = b.tipe === 'jendela' ? -18 : 16;
       ctx.translate(0, badgeY);
       ctx.font = 'bold 10px sans-serif';
@@ -1026,7 +1115,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
     });
   };
 
-  // Gambar Furniture (Meja Client, Kursi, dsb.)
+  // Gambar Furniture (Meja Client, Kursi, Tangga Arsitektur, dsb.)
   const drawFurniture = (
     ctx: CanvasRenderingContext2D,
     items: Furniture[],
@@ -1042,9 +1131,182 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       ctx.translate(item.posisi_x, item.posisi_y);
       ctx.rotate((item.rotasi * Math.PI) / 180);
 
+      // 1. TANGGA LURUS CAD
+      if (item.tipe === 'tangga_lurus') {
+        const numSteps = item.tangga_jumlah_anak || 14;
+        const stepH = hPx / numSteps;
+        const arah = item.tangga_arah || 'naik';
+
+        // Background tapak tangga
+        ctx.fillStyle = isSel
+          ? theme === 'light'
+            ? '#e0f2fe'
+            : '#0c4a6e'
+          : theme === 'light'
+          ? '#f8fafc'
+          : '#0f172a';
+        ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#64748b' : '#475569';
+        ctx.lineWidth = isSel ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.rect(-wPx / 2, -hPx / 2, wPx, hPx);
+        ctx.fill();
+        ctx.stroke();
+
+        // Garis-garis anak tangga (Treads)
+        ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#94a3b8' : '#334155';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < numSteps; i++) {
+          const y = -hPx / 2 + i * stepH;
+          ctx.beginPath();
+          ctx.moveTo(-wPx / 2, y);
+          ctx.lineTo(wPx / 2, y);
+          ctx.stroke();
+        }
+
+        // Garis panah arah jalan arsitektur (Walking Line)
+        const startY = arah === 'naik' ? hPx / 2 - 12 : -hPx / 2 + 12;
+        const endY = arah === 'naik' ? -hPx / 2 + 12 : hPx / 2 - 12;
+
+        ctx.strokeStyle = isSel ? '#f43f5e' : '#38bdf8';
+        ctx.fillStyle = isSel ? '#f43f5e' : '#38bdf8';
+        ctx.lineWidth = 2;
+
+        // Titik awal jalan (Start Circle)
+        ctx.beginPath();
+        ctx.arc(0, startY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Garis panah tengah
+        ctx.beginPath();
+        ctx.moveTo(0, startY);
+        ctx.lineTo(0, endY);
+        ctx.stroke();
+
+        // Kepala Panah (Arrowhead)
+        const arrowDir = arah === 'naik' ? -1 : 1;
+        ctx.beginPath();
+        ctx.moveTo(0, endY);
+        ctx.lineTo(-6, endY - arrowDir * 10);
+        ctx.lineTo(6, endY - arrowDir * 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // Label teks NAIK / TURUN
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isSel ? '#f43f5e' : theme === 'light' ? '#0369a1' : '#38bdf8';
+        ctx.fillText(arah === 'naik' ? '▲ NAIK (LT. 2)' : '▼ TURUN (LT. 1)', 0, 0);
+
+        ctx.restore();
+        return;
+      }
+
+      // 2. TANGGA U-SHAPE (BORDES) CAD
+      if (item.tipe === 'tangga_u') {
+        const numSteps = item.tangga_jumlah_anak || 16;
+        const halfSteps = Math.floor(numSteps / 2);
+        const bordesH = Math.min(60, hPx * 0.3); // Area bordes istirahat
+        const flightH = hPx - bordesH;
+        const stepH = flightH / halfSteps;
+        const arah = item.tangga_arah || 'naik';
+
+        // Outer boundary
+        ctx.fillStyle = isSel
+          ? theme === 'light'
+            ? '#e0f2fe'
+            : '#0c4a6e'
+          : theme === 'light'
+          ? '#f8fafc'
+          : '#0f172a';
+        ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#64748b' : '#475569';
+        ctx.lineWidth = isSel ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.rect(-wPx / 2, -hPx / 2, wPx, hPx);
+        ctx.fill();
+        ctx.stroke();
+
+        // Bordes (Landing)
+        ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#64748b' : '#475569';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-wPx / 2, -hPx / 2 + bordesH);
+        ctx.lineTo(wPx / 2, -hPx / 2 + bordesH);
+        ctx.stroke();
+
+        // Garis pemisah dua lajur (Well / Railing gap)
+        ctx.strokeRect(-5, -hPx / 2 + bordesH, 10, flightH);
+
+        // Anak tangga di Lajur Kiri & Lajur Kanan
+        ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#94a3b8' : '#334155';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < halfSteps; i++) {
+          const y = -hPx / 2 + bordesH + i * stepH;
+          // Kiri
+          ctx.beginPath();
+          ctx.moveTo(-wPx / 2, y);
+          ctx.lineTo(-5, y);
+          ctx.stroke();
+          // Kanan
+          ctx.beginPath();
+          ctx.moveTo(5, y);
+          ctx.lineTo(wPx / 2, y);
+          ctx.stroke();
+        }
+
+        // Panah U-turn
+        ctx.strokeStyle = isSel ? '#f43f5e' : '#38bdf8';
+        ctx.fillStyle = isSel ? '#f43f5e' : '#38bdf8';
+        ctx.lineWidth = 2;
+
+        const leftMidX = -wPx / 4;
+        const rightMidX = wPx / 4;
+        const botY = hPx / 2 - 10;
+        const topY = -hPx / 2 + bordesH / 2;
+
+        ctx.beginPath();
+        ctx.arc(leftMidX, botY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(leftMidX, botY);
+        ctx.lineTo(leftMidX, topY);
+        ctx.lineTo(rightMidX, topY);
+        ctx.lineTo(rightMidX, botY);
+        ctx.stroke();
+
+        // Arrowhead at right botY
+        ctx.beginPath();
+        ctx.moveTo(rightMidX, botY);
+        ctx.lineTo(rightMidX - 5, botY - 8);
+        ctx.lineTo(rightMidX + 5, botY - 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Label Bordes
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = theme === 'light' ? '#64748b' : '#94a3b8';
+        ctx.fillText('BORDES', 0, -hPx / 2 + bordesH / 2 + 3);
+
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillStyle = isSel ? '#f43f5e' : theme === 'light' ? '#0369a1' : '#38bdf8';
+        ctx.fillText(arah === 'naik' ? 'TANGGA U (NAIK)' : 'TANGGA U (TURUN)', 0, hPx / 2 - 18);
+
+        ctx.restore();
+        return;
+      }
+
+      // 3. FURNITURE MEJA KERJA STANDAR
       // Permukaan Meja
-      ctx.fillStyle = isSel ? '#1e3a5f' : '#1e293b';
-      ctx.strokeStyle = isSel ? '#38bdf8' : '#475569';
+      ctx.fillStyle = isSel
+        ? theme === 'light'
+          ? '#e0f2fe'
+          : '#1e3a5f'
+        : theme === 'light'
+        ? '#f1f5f9'
+        : '#1e293b';
+      ctx.strokeStyle = isSel ? highlightColor : theme === 'light' ? '#94a3b8' : '#475569';
       ctx.lineWidth = isSel ? 2 : 1.5;
       ctx.beginPath();
       ctx.roundRect(-wPx / 2, -hPx / 2, wPx, hPx, 4);
@@ -1052,26 +1314,26 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       ctx.stroke();
 
       // Ikon Monitor & Keyboard di Meja Client
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = theme === 'light' ? '#64748b' : '#475569';
       ctx.fillRect(-16, -hPx / 2 + 6, 32, 4); // Layar monitor
       ctx.fillRect(-12, -hPx / 2 + 15, 24, 10); // Keyboard
 
       // Kursi Kerja
       ctx.beginPath();
       ctx.arc(0, hPx / 2 + 10, 10, 0, Math.PI * 2);
-      ctx.fillStyle = isSel ? '#0284c7' : '#334155';
+      ctx.fillStyle = isSel ? highlightColor : theme === 'light' ? '#cbd5e1' : '#334155';
       ctx.fill();
       ctx.stroke();
 
       // Label Meja & Pemilik Client
       ctx.font = 'bold 10px sans-serif';
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = isSel ? highlightColor : theme === 'light' ? '#0369a1' : '#38bdf8';
       ctx.textAlign = 'center';
       ctx.fillText(item.label || 'Meja Client', 0, 0);
 
       if (item.pemilik_client) {
         ctx.font = '9px sans-serif';
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = theme === 'light' ? '#64748b' : '#94a3b8';
         ctx.fillText(item.pemilik_client, 0, 12);
       }
 
@@ -1087,6 +1349,10 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
     selected: { type: string; id: string } | null
   ) => {
     devList.forEach((dev) => {
+      // Perangkat yang terpasang di dalam Server Rack TIDAK digambar terpisah di kanvas denah
+      // (Visual modul internal dan jumlah unitnya sudah digambar rapi di dalam Server Rack)
+      if (dev.rack_id) return;
+
       const isSel = isItemSelected('perangkat', dev.id);
       ctx.save();
       ctx.translate(dev.posisi_x, dev.posisi_y);
@@ -1098,10 +1364,13 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         const rw = 0.8 * scale; // 80cm
         const rh = 1.0 * scale; // 100cm
         ctx.fillStyle = '#0f172a';
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#3b82f6';
+        ctx.strokeStyle = isSel ? highlightColor : '#3b82f6';
         ctx.lineWidth = 2;
         ctx.strokeRect(-rw / 2, -rh / 2, rw, rh);
         ctx.fillRect(-rw / 2, -rh / 2, rw, rh);
+
+        // Cari switch yang terpasang di dalam rack ini
+        const mountedSwitches = devList.filter((d) => d.rack_id === dev.id);
 
         // Garis rak / unit slots
         ctx.strokeStyle = '#1e3a8a';
@@ -1112,16 +1381,49 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           ctx.lineTo(rw / 2 - 4, i);
           ctx.stroke();
         }
+
+        // Gambar visual slot terisi jika ada switch terpasang
+        if (mountedSwitches.length > 0) {
+          mountedSwitches.forEach((_, idx) => {
+            const slotY = -rh / 2 + 10 + idx * 10;
+            if (slotY < rh / 2 - 10) {
+              ctx.fillStyle = '#1e293b';
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 1;
+              ctx.fillRect(-rw / 2 + 8, slotY, rw - 16, 7);
+              ctx.strokeRect(-rw / 2 + 8, slotY, rw - 16, 7);
+
+              // Mini LED
+              ctx.fillStyle = '#10b981';
+              ctx.fillRect(-rw / 2 + 12, slotY + 2, 3, 3);
+            }
+          });
+        }
+
         ctx.fillStyle = '#60a5fa';
         ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('SERVER RACK', 0, -rh / 2 - 6);
+        ctx.fillText('SERVER RACK (42U)', 0, -rh / 2 - 8);
+
+        // Badge jumlah switch terpasang
+        if (mountedSwitches.length > 0) {
+          const badgeText = `${mountedSwitches.length} Switch Terpasang`;
+          ctx.font = 'bold 8px sans-serif';
+          const bw = ctx.measureText(badgeText).width + 8;
+          ctx.fillStyle = '#065f46';
+          ctx.fillRect(-bw / 2, rh / 2 + 4, bw, 14);
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-bw / 2, rh / 2 + 4, bw, 14);
+          ctx.fillStyle = '#a7f3d0';
+          ctx.fillText(badgeText, 0, rh / 2 + 14);
+        }
       } else if (dev.kategori === 'switch') {
         // Switch Rackmount
         const sw = 0.5 * scale;
         const sh = 0.25 * scale;
         ctx.fillStyle = '#1e293b';
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#10b981';
+        ctx.strokeStyle = isSel ? highlightColor : '#10b981';
         ctx.lineWidth = 1.5;
         ctx.fillRect(-sw / 2, -sh / 2, sw, sh);
         ctx.strokeRect(-sw / 2, -sh / 2, sw, sh);
@@ -1131,11 +1433,19 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         for (let x = -sw / 2 + 6; x < sw / 2 - 6; x += 6) {
           ctx.fillRect(x, -sh / 2 + 4, 3, 3);
         }
+
+        // Jika switch terpasang di Server Rack, beri tanda indikator
+        if (dev.rack_id) {
+          ctx.font = 'bold 8px sans-serif';
+          ctx.fillStyle = '#38bdf8';
+          ctx.textAlign = 'center';
+          ctx.fillText('⚡ di Rack', 0, sh / 2 + 10);
+        }
       } else if (dev.kategori === 'cctv') {
         // CCTV Camera Icon
         ctx.beginPath();
         ctx.arc(0, 0, 10, 0, Math.PI * 2);
-        ctx.fillStyle = isSel ? '#38bdf8' : '#f97316';
+        ctx.fillStyle = isSel ? highlightColor : '#f97316';
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
@@ -1152,7 +1462,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         // Access Point Icon (Lingkaran dengan LED)
         ctx.beginPath();
         ctx.arc(0, 0, 12, 0, Math.PI * 2);
-        ctx.fillStyle = isSel ? '#38bdf8' : '#059669';
+        ctx.fillStyle = isSel ? highlightColor : '#059669';
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
@@ -1166,7 +1476,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         ctx.stroke();
       } else if (dev.kategori === 'pc_client') {
         // PC Client Workstation
-        ctx.fillStyle = isSel ? '#38bdf8' : '#64748b';
+        ctx.fillStyle = isSel ? highlightColor : '#64748b';
         ctx.fillRect(-10, -10, 20, 20);
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(-8, -8, 16, 16);
@@ -1181,8 +1491,8 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         // Simbol Shaft / Riser Kabel (Arsitektur CAD: Kotak dengan Silang 'X' diagonal)
         const sw = 0.5 * scale;
         const sh = 0.5 * scale;
-        ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.2)';
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f59e0b';
+        ctx.fillStyle = isSel ? 'rgba(2, 132, 199, 0.25)' : 'rgba(245, 158, 11, 0.2)';
+        ctx.strokeStyle = isSel ? highlightColor : '#f59e0b';
         ctx.lineWidth = 2;
         ctx.fillRect(-sw / 2, -sh / 2, sw, sh);
         ctx.strokeRect(-sw / 2, -sh / 2, sw, sh);
@@ -1193,7 +1503,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         ctx.lineTo(sw / 2, sh / 2);
         ctx.moveTo(sw / 2, -sh / 2);
         ctx.lineTo(-sw / 2, sh / 2);
-        ctx.strokeStyle = isSel ? '#38bdf8' : '#f59e0b';
+        ctx.strokeStyle = isSel ? highlightColor : '#f59e0b';
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
@@ -2158,6 +2468,31 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         }
       }
 
+      // 0.15. Cek apakah user mengklik langsung pada Label Ruangan mana saja di denah (bisa langsung digeser tanpa ribet!)
+      for (const r of ruangan) {
+        if (!r.polygon_points || r.polygon_points.length < 3) continue;
+        const vCenter = getRoomVisualCenter(r.polygon_points);
+        const lx = vCenter.x + (r.label_offset_x || 0);
+        const ly = vCenter.y + (r.label_offset_y || 0);
+        // Hit area yang luas dan nyaman selebar badge label (170px x 48px)
+        const hitHalfW = 85;
+        const hitHalfH = 24;
+        if (
+          world.x >= lx - hitHalfW &&
+          world.x <= lx + hitHalfW &&
+          world.y >= ly - hitHalfH &&
+          world.y <= ly + hitHalfH
+        ) {
+          onSelectItem({ type: 'ruangan', id: r.id });
+          onSelectItems?.([{ type: 'ruangan', id: r.id }]);
+          setDraggingItemId(r.id);
+          setDraggingRoomHandle('label');
+          setDragRoomStartWorld(world);
+          setDragRoomOrigLabelOffset({ x: r.label_offset_x || 0, y: r.label_offset_y || 0 });
+          return;
+        }
+      }
+
       // 0.2. Cek apakah user mengklik salah satu handle dinding yang sedang terpilih (P1, P2, Body, atau Curvature)
       if (selectedItem?.type === 'wall') {
         const curWall = dinding.find((w) => w.id === selectedItem.id);
@@ -2267,6 +2602,29 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           const maxX = Math.max(...xs);
           const minY = Math.min(...ys);
           const maxY = Math.max(...ys);
+          const avgX = (minX + maxX) / 2;
+          const avgY = (minY + maxY) / 2;
+
+          // Cek apakah klik handle Label Ruangan
+          const vCenter = getRoomVisualCenter(curRoom.polygon_points);
+          const labelPos = {
+            x: vCenter.x + (curRoom.label_offset_x || 0),
+            y: vCenter.y + (curRoom.label_offset_y || 0),
+          };
+          const hitHalfW = 85;
+          const hitHalfH = 24;
+          if (
+            world.x >= labelPos.x - hitHalfW &&
+            world.x <= labelPos.x + hitHalfW &&
+            world.y >= labelPos.y - hitHalfH &&
+            world.y <= labelPos.y + hitHalfH
+          ) {
+            setDraggingItemId(curRoom.id);
+            setDraggingRoomHandle('label');
+            setDragRoomStartWorld(world);
+            setDragRoomOrigLabelOffset({ x: curRoom.label_offset_x || 0, y: curRoom.label_offset_y || 0 });
+            return;
+          }
 
           // Cek 4 corner resize handles untuk ruangan standar kotak 4 sudut
           if (curRoom.polygon_points.length === 4) {
@@ -2332,7 +2690,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           clickedItem = { type: 'kabel', id: hit.kabel.id };
         }
       } else if (selectionFilter === 'perangkat') {
-        const hitDev = perangkat.find((p) => getDistance(world, { x: p.posisi_x, y: p.posisi_y }) < 20);
+        const hitDev = perangkat.find((p) => !p.rack_id && getDistance(world, { x: p.posisi_x, y: p.posisi_y }) < 20);
         if (hitDev) {
           clickedItem = { type: 'perangkat', id: hitDev.id };
           startSingleDrag = () => {
@@ -2386,9 +2744,9 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           };
         }
 
-        // B. Perangkat IT
+        // B. Perangkat IT (Hanya perangkat mandiri di lantai, bukan yang terpasang di dalam rack)
         if (!clickedItem) {
-          const hitDev = perangkat.find((p) => getDistance(world, { x: p.posisi_x, y: p.posisi_y }) < 20);
+          const hitDev = perangkat.find((p) => !p.rack_id && getDistance(world, { x: p.posisi_x, y: p.posisi_y }) < 20);
           if (hitDev) {
             clickedItem = { type: 'perangkat', id: hitDev.id };
             startSingleDrag = () => {
@@ -2509,7 +2867,44 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         return;
       }
 
-      // Cek apakah mengklik gambar jiplakan denah (hanya jika TIDAK dikunci / unlocked)
+      // Cek apakah mengklik handle sudut resize gambar jiplakan (hanya jika TIDAK dikunci)
+      if (
+        !e.shiftKey &&
+        jiplakan &&
+        !jiplakan.is_locked &&
+        jiplakan.is_visible &&
+        tracingImgRef.current
+      ) {
+        const img = tracingImgRef.current;
+        const curScale = jiplakan.skala || 1.0;
+        const w = img.naturalWidth * curScale;
+        const h = img.naturalHeight * curScale;
+
+        const rad = -((jiplakan.rotasi || 0) * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const dx = world.x - jiplakan.posisi_x;
+        const dy = world.y - jiplakan.posisi_y;
+        const lx = cos * dx - sin * dy;
+        const ly = sin * dx + cos * dy;
+
+        const handleRadius = 16 / zoom;
+        if (getDistance({ x: lx, y: ly }, { x: 0, y: 0 }) < handleRadius) {
+          setIsResizingTracing('nw');
+          return;
+        } else if (getDistance({ x: lx, y: ly }, { x: w, y: 0 }) < handleRadius) {
+          setIsResizingTracing('ne');
+          return;
+        } else if (getDistance({ x: lx, y: ly }, { x: w, y: h }) < handleRadius) {
+          setIsResizingTracing('se');
+          return;
+        } else if (getDistance({ x: lx, y: ly }, { x: 0, y: h }) < handleRadius) {
+          setIsResizingTracing('sw');
+          return;
+        }
+      }
+
+      // Cek apakah mengklik badan gambar jiplakan denah (hanya jika TIDAK dikunci / unlocked)
       if (
         !e.shiftKey &&
         jiplakan &&
@@ -2946,6 +3341,38 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
       return;
     }
 
+    // 1.6. Resizing Gambar Jiplakan Denah melalui 4 Sudut Bebas Langsung di Kanvas
+    if (isMouseDown && isResizingTracing && jiplakan && tracingImgRef.current && onUpdateJiplakan) {
+      const img = tracingImgRef.current;
+      const rad = -((jiplakan.rotasi || 0) * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dx = world.x - jiplakan.posisi_x;
+      const dy = world.y - jiplakan.posisi_y;
+      const lx = cos * dx - sin * dy;
+      const ly = sin * dx + cos * dy;
+
+      let newScale = jiplakan.skala || 1.0;
+      if (isResizingTracing === 'se') {
+        const scaleX = lx / img.naturalWidth;
+        const scaleY = ly / img.naturalHeight;
+        newScale = Math.max(0.05, Math.min(10.0, (scaleX + scaleY) / 2));
+      } else if (isResizingTracing === 'ne') {
+        newScale = Math.max(0.05, Math.min(10.0, lx / img.naturalWidth));
+      } else if (isResizingTracing === 'sw') {
+        newScale = Math.max(0.05, Math.min(10.0, ly / img.naturalHeight));
+      } else if (isResizingTracing === 'nw') {
+        const curW = img.naturalWidth * (jiplakan.skala || 1.0);
+        newScale = Math.max(0.05, Math.min(10.0, (curW - lx) / img.naturalWidth));
+      }
+
+      onUpdateJiplakan({
+        ...jiplakan,
+        skala: Number(newScale.toFixed(3)),
+      });
+      return;
+    }
+
     // 2. Batch Move Dragging (Memindahkan Banyak Dinding & Barang Sekaligus)
     if (isMouseDown && isDraggingBatch) {
       const snapX = snapGrid ? snapToGrid(world.x, subGridSizePx) : world.x;
@@ -2990,8 +3417,12 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         onUpdatePerangkat(
           perangkat.map((p) => {
             const orig = pMap.get(p.id);
-            if (!orig) return p;
-            return { ...p, posisi_x: orig.posisi_x + dx, posisi_y: orig.posisi_y + dy };
+            if (orig) return { ...p, posisi_x: orig.posisi_x + dx, posisi_y: orig.posisi_y + dy };
+            if (p.rack_id && pMap.has(p.rack_id)) {
+              const rackOrig = pMap.get(p.rack_id)!;
+              return { ...p, posisi_x: rackOrig.posisi_x + dx, posisi_y: rackOrig.posisi_y + dy };
+            }
+            return p;
           })
         );
       }
@@ -3020,6 +3451,17 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
 
         const updated = ruangan.map((r) => {
           if (r.id !== draggingItemId) return r;
+
+          // Drag Label Nama Ruangan Bebas (Linear, halus, dan stabil)
+          if (draggingRoomHandle === 'label') {
+            const dx = world.x - dragRoomStartWorld.x;
+            const dy = world.y - dragRoomStartWorld.y;
+            return {
+              ...r,
+              label_offset_x: Math.round(dragRoomOrigLabelOffset.x + dx),
+              label_offset_y: Math.round(dragRoomOrigLabelOffset.y + dy),
+            };
+          }
 
           if (draggingRoomHandle === 'body') {
             const snapStartX = snapGrid ? snapToGrid(dragRoomStartWorld.x, subGridSizePx) : dragRoomStartWorld.x;
@@ -3122,11 +3564,17 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         });
         onUpdateDinding(updated);
       } else if (selectedItem?.type === 'perangkat') {
-        const updated = perangkat.map((p) =>
-          p.id === draggingItemId
-            ? { ...p, posisi_x: world.x - dragItemOffset.x, posisi_y: world.y - dragItemOffset.y }
-            : p
-        );
+        const newX = world.x - dragItemOffset.x;
+        const newY = world.y - dragItemOffset.y;
+        const updated = perangkat.map((p) => {
+          if (p.id === draggingItemId) {
+            return { ...p, posisi_x: newX, posisi_y: newY };
+          }
+          if (p.rack_id === draggingItemId) {
+            return { ...p, posisi_x: newX, posisi_y: newY };
+          }
+          return p;
+        });
         onUpdatePerangkat(updated);
       } else if (selectedItem?.type === 'furniture') {
         const updated = furniture.map((f) =>
@@ -3272,6 +3720,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
 
     setIsDraggingBatch(false);
     setIsDraggingTracing(false);
+    setIsResizingTracing(null);
     setDragTracingStart(null);
     setDraggingItemId(null);
     setDraggingWallHandle(null);
@@ -3307,6 +3756,13 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
           onSelectItems?.([{ type: 'ruangan', id: newRoom.id }]);
           return;
         }
+      }
+
+      // Shortcut Duplikasi Objek (Ctrl+D / Cmd+D)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        onDuplicate?.();
+        return;
       }
 
       if (e.key === 'Escape' || e.key === 'Enter') {
@@ -3380,7 +3836,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
     const targetWin = targetDoc.defaultView || window;
     targetWin.addEventListener('keydown', handleKeyDown);
     return () => targetWin.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan, onUpdateBukaan, onUpdateRuangan, onCalibrationFinished]);
+  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan, onUpdateBukaan, onUpdateRuangan, onCalibrationFinished, onDuplicate]);
 
   return (
     <div
@@ -3419,100 +3875,102 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
         onDoubleClick={handleDoubleClick}
       />
 
-      {/* Floating Selection & Layer Filter Pills untuk Presisi di Denah Padat */}
+      {/* Floating Selection & Layer Filter Pills — 2 Baris Responsif (tidak terpotong di single display) */}
       {tool === 'select' && (
         <div
-          className={`absolute z-30 flex items-center backdrop-blur-md border rounded-xl p-1 shadow-2xl space-x-1 text-xs transition-all ${
+          className={`absolute z-30 flex flex-col backdrop-blur-md border rounded-xl p-1.5 shadow-2xl text-xs transition-all ${
             isPopout ? 'left-4 bottom-4' : 'top-3 left-1/2 -translate-x-1/2'
           } ${
             theme === 'light'
               ? 'bg-white/95 border-slate-300 text-slate-800 shadow-slate-300/50'
               : 'bg-slate-900/95 border-slate-700/80 text-slate-200'
           }`}
+          style={{ maxWidth: 'calc(100vw - 32px)', minWidth: 0 }}
         >
-          <span className="text-[10px] font-semibold text-slate-400 uppercase px-1.5 hidden sm:inline">
-            Seleksi:
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectionFilter('all')}
-            className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer ${
-              selectionFilter === 'all'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-            title="Pilih Semua Elemen (Otomatis Deteksi Terdekat)"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Semua</span>
-          </button>
+          {/* ── Baris 1: Filter Seleksi + Filter Kabel ── */}
+          <div className="flex items-center flex-wrap gap-0.5">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase px-1.5 shrink-0">
+              Seleksi:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectionFilter('all')}
+              className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer shrink-0 ${
+                selectionFilter === 'all'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title="Pilih Semua Elemen (Otomatis Deteksi Terdekat)"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Semua</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setSelectionFilter('kabel')}
-            className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer ${
-              selectionFilter === 'kabel'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-            title="Hanya Pilih Kabel (Abaikan Tembok & Ruangan)"
-          >
-            <Cable className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Kabel</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectionFilter('kabel')}
+              className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer shrink-0 ${
+                selectionFilter === 'kabel'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title="Hanya Pilih Kabel (Abaikan Tembok & Ruangan)"
+            >
+              <Cable className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Kabel</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setSelectionFilter('perangkat')}
-            className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer ${
-              selectionFilter === 'perangkat'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-            title="Hanya Pilih Perangkat IT (Switch, CCTV, AP, dsb)"
-          >
-            <Server className="w-3.5 h-3.5 text-blue-400" />
-            <span className="hidden sm:inline">Perangkat</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectionFilter('perangkat')}
+              className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer shrink-0 ${
+                selectionFilter === 'perangkat'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title="Hanya Pilih Perangkat IT (Switch, CCTV, AP, dsb)"
+            >
+              <Server className="w-3.5 h-3.5 text-blue-400" />
+              <span>Perangkat</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setSelectionFilter('wall')}
-            className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer ${
-              selectionFilter === 'wall'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-            title="Hanya Pilih Dinding"
-          >
-            <Square className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Dinding</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectionFilter('wall')}
+              className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer shrink-0 ${
+                selectionFilter === 'wall'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title="Hanya Pilih Dinding"
+            >
+              <Square className="w-3.5 h-3.5 text-amber-400" />
+              <span>Dinding</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setSelectionFilter('ruangan')}
-            className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer ${
-              selectionFilter === 'ruangan'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-            title="Hanya Pilih Ruangan / Zonasi"
-          >
-            <Grid className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Ruang</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectionFilter('ruangan')}
+              className={`px-2 py-1 rounded-lg flex items-center space-x-1 transition font-medium cursor-pointer shrink-0 ${
+                selectionFilter === 'ruangan'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title="Hanya Pilih Ruangan / Zonasi"
+            >
+              <Grid className="w-3.5 h-3.5 text-purple-400" />
+              <span>Ruang</span>
+            </button>
 
-          {/* Filter Tampilan Jenis Kabel (LAN / CCTV / AP / FO / dsb) */}
-          <div className="h-4 w-px bg-slate-700/80 mx-1 shrink-0" />
-          <div className="flex items-center space-x-1">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase px-1 hidden md:inline">
+            {/* Separator + Filter Kabel */}
+            <div className="h-4 w-px bg-slate-700/80 mx-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold text-slate-400 uppercase px-1 shrink-0">
               Kabel:
             </span>
             <select
               value={visibleCableType || 'all'}
               onChange={(e) => onSelectVisibleCableType?.(e.target.value)}
-              className={`font-medium text-xs rounded-lg px-2 py-1 border focus:outline-none cursor-pointer transition ${
+              className={`font-medium text-xs rounded-lg px-2 py-1 border focus:outline-none cursor-pointer transition shrink-0 ${
                 theme === 'light'
                   ? 'bg-slate-100 hover:bg-slate-200 text-sky-700 border-slate-300 focus:border-sky-500'
                   : 'bg-slate-950/90 hover:bg-slate-800 text-sky-300 border-slate-700/80 focus:border-sky-500'
@@ -3533,7 +3991,7 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectVisibleCableType?.('all')}
-                className="px-1.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-[10px] font-semibold border border-amber-500/30 transition cursor-pointer"
+                className="px-1.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-[10px] font-semibold border border-amber-500/30 transition cursor-pointer shrink-0"
                 title="Tampilkan Kembali Semua Kabel"
               >
                 Reset
@@ -3541,38 +3999,87 @@ export const FloorCanvas: React.FC<FloorCanvasProps> = ({
             )}
           </div>
 
-          {/* Filter Layer Tampilan Denah (Semua / Dinding Saja / Ruangan Saja / Kabel Saja / Perangkat Saja) */}
-          <div className="h-4 w-px bg-slate-700/80 mx-1 shrink-0" />
-          <div className="flex items-center space-x-1">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase px-1 hidden md:inline">
+          {/* ── Baris 2: Filter Layer + Duplikat ── */}
+          <div className={`flex items-center flex-wrap gap-0.5 mt-1 pt-1 border-t ${
+            theme === 'light' ? 'border-slate-200' : 'border-slate-700/60'
+          }`}>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase px-1 shrink-0">
               Layer:
             </span>
-            <select
-              value={layerVisibility || 'all'}
-              onChange={(e) => onSelectLayerVisibility?.(e.target.value as LayerVisibility)}
-              className={`font-medium text-xs rounded-lg px-2 py-1 border focus:outline-none cursor-pointer transition ${
-                theme === 'light'
-                  ? 'bg-slate-100 hover:bg-slate-200 text-amber-700 border-slate-300 focus:border-amber-500'
-                  : 'bg-slate-950/90 hover:bg-slate-800 text-amber-300 border-slate-700/80 focus:border-amber-500'
-              }`}
-              title="Filter tampilan layer (Semua, Dinding saja, Ruangan saja, Kabel saja, Perangkat saja)"
-            >
-              <option value="all">Semua Layer</option>
-              <option value="dinding">🧱 Dinding Saja</option>
-              <option value="ruangan">📐 Ruangan Saja</option>
-              <option value="kabel">⚡ Kabel Saja</option>
-              <option value="perangkat">🖥️ Perangkat Saja</option>
-              <option value="furniture">🪑 Furniture Saja</option>
-            </select>
-            {layerVisibility && layerVisibility !== 'all' && (
-              <button
-                type="button"
-                onClick={() => onSelectLayerVisibility?.('all')}
-                className="px-1.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-[10px] font-semibold border border-amber-500/30 transition cursor-pointer"
-                title="Tampilkan Kembali Semua Layer"
-              >
-                Reset
-              </button>
+            {[
+              { id: 'all', label: 'Semua', icon: '👁️' },
+              { id: 'dinding', label: 'Dinding', icon: '🧱' },
+              { id: 'ruangan', label: 'Ruangan', icon: '📐' },
+              { id: 'kabel', label: 'Kabel', icon: '⚡' },
+              { id: 'perangkat', label: 'Perangkat', icon: '🖥️' },
+              { id: 'furniture', label: 'Furniture', icon: '🪑' },
+            ].map((lay) => {
+              const isActive =
+                lay.id === 'all'
+                  ? !layerVisibility || layerVisibility === 'all'
+                  : Array.isArray(layerVisibility)
+                  ? layerVisibility.includes(lay.id as any)
+                  : layerVisibility === lay.id;
+
+              const toggleLayer = () => {
+                if (!onSelectLayerVisibility) return;
+                if (lay.id === 'all') {
+                  onSelectLayerVisibility('all');
+                  return;
+                }
+                const allLayers = ['dinding', 'ruangan', 'kabel', 'perangkat', 'furniture'] as const;
+                const currentArr =
+                  !layerVisibility || layerVisibility === 'all'
+                    ? [...allLayers]
+                    : Array.isArray(layerVisibility)
+                    ? [...layerVisibility]
+                    : [layerVisibility];
+
+                const exists = currentArr.includes(lay.id as any);
+                let nextArr: any[];
+                if (exists) {
+                  nextArr = currentArr.filter((x) => x !== lay.id);
+                  if (nextArr.length === 0) nextArr = ['all'];
+                } else {
+                  nextArr = [...currentArr, lay.id];
+                  if (nextArr.length === 5) nextArr = ['all'];
+                }
+                onSelectLayerVisibility(nextArr.length === 1 && nextArr[0] === 'all' ? 'all' : nextArr);
+              };
+
+              return (
+                <button
+                  key={lay.id}
+                  type="button"
+                  onClick={toggleLayer}
+                  className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold border transition cursor-pointer flex items-center space-x-1 shrink-0 ${
+                    isActive
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                      : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'
+                  }`}
+                  title={`Klik untuk toggle visibilitas layer ${lay.label}`}
+                >
+                  <span>{lay.icon}</span>
+                  <span className="hidden lg:inline">{lay.label}</span>
+                </button>
+              );
+            })}
+
+            {/* Tombol Duplikat di baris 2, setelah layer pills */}
+            {(selectedItem || (selectedItems && selectedItems.length > 0)) && (
+              <>
+                <div className="h-4 w-px bg-slate-700/80 mx-0.5 shrink-0" />
+                <button
+                  type="button"
+                  onClick={onDuplicate}
+                  className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded-lg text-[10px] font-semibold flex items-center space-x-1 transition cursor-pointer shadow-sm shrink-0"
+                  title="Duplikat Elemen Terpilih (Ctrl+D)"
+                >
+                  <span>📋</span>
+                  <span>Duplikat</span>
+                  <span className="opacity-75 font-mono hidden sm:inline">(Ctrl+D)</span>
+                </button>
+              </>
             )}
           </div>
         </div>

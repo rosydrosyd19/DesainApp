@@ -81,6 +81,7 @@ interface PopoutCanvasViewProps {
   theme?: 'dark' | 'light';
   layerVisibility?: LayerVisibility;
   onSelectLayerVisibility?: (layer: LayerVisibility) => void;
+  onDuplicate?: () => void;
 }
 
 export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
@@ -135,6 +136,7 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
   theme = 'dark',
   layerVisibility = 'all',
   onSelectLayerVisibility,
+  onDuplicate,
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -405,6 +407,7 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
           theme={theme}
           layerVisibility={layerVisibility}
           onSelectLayerVisibility={onSelectLayerVisibility}
+          onDuplicate={onDuplicate}
         />
       </div>
     </div>

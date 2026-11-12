@@ -65,6 +65,9 @@ export function App() {
   const handleSelectItem = (item: { type: string; id: string } | null) => {
     setSelectedItem(item);
     setSelectedItems(item ? [item] : []);
+    if (item) {
+      setIsRightSidebarOpen(true);
+    }
   };
 
   const handleSelectItems = (items: Array<{ type: string; id: string }>) => {
@@ -480,6 +483,229 @@ export function App() {
     setTimeout(() => setSaveNotification(null), 4000);
   };
 
+  // 1. Fitur Duplikasi Objek (Ctrl+D / Tombol Copy)
+  const handleDuplicateSelected = () => {
+    const itemsToDup = selectedItems.length > 0 ? selectedItems : selectedItem ? [selectedItem] : [];
+    if (itemsToDup.length === 0) return;
+
+    const offset = 35; // Jarak geser salinan agar terlihat jelas di samping aslinya
+    const newSelected: Array<{ type: string; id: string }> = [];
+
+    // Duplikat Dinding
+    const wallIds = new Set(itemsToDup.filter((i) => i.type === 'wall').map((i) => i.id));
+    if (wallIds.size > 0) {
+      const dupWalls: Dinding[] = dinding
+        .filter((w) => wallIds.has(w.id))
+        .map((w) => {
+          const newId = `wall-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'wall', id: newId });
+          return {
+            ...w,
+            id: newId,
+            x1: w.x1 + offset,
+            y1: w.y1 + offset,
+            x2: w.x2 + offset,
+            y2: w.y2 + offset,
+          };
+        });
+      setDinding((prev) => [...prev, ...dupWalls]);
+    }
+
+    // Duplikat Bukaan (Pintu & Jendela)
+    const bukaanIds = new Set(itemsToDup.filter((i) => i.type === 'bukaan').map((i) => i.id));
+    if (bukaanIds.size > 0) {
+      const dupBukaan: Bukaan[] = bukaan
+        .filter((b) => bukaanIds.has(b.id))
+        .map((b) => {
+          const newId = `bukaan-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'bukaan', id: newId });
+          return {
+            ...b,
+            id: newId,
+            posisi_x: b.posisi_x + offset,
+            posisi_y: b.posisi_y + offset,
+          };
+        });
+      setBukaan((prev) => [...prev, ...dupBukaan]);
+    }
+
+    // Duplikat Furniture & Tangga
+    const furnIds = new Set(itemsToDup.filter((i) => i.type === 'furniture').map((i) => i.id));
+    if (furnIds.size > 0) {
+      const dupFurn: Furniture[] = furniture
+        .filter((f) => furnIds.has(f.id))
+        .map((f) => {
+          const newId = `furn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'furniture', id: newId });
+          return {
+            ...f,
+            id: newId,
+            posisi_x: f.posisi_x + offset,
+            posisi_y: f.posisi_y + offset,
+            label: f.label ? `${f.label} (Salinan)` : 'Salinan',
+          };
+        });
+      setFurniture((prev) => [...prev, ...dupFurn]);
+    }
+
+    // Duplikat Perangkat IT
+    const devIds = new Set(itemsToDup.filter((i) => i.type === 'perangkat').map((i) => i.id));
+    if (devIds.size > 0) {
+      const dupDev: Perangkat[] = perangkat
+        .filter((p) => devIds.has(p.id))
+        .map((p) => {
+          const newId = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'perangkat', id: newId });
+          return {
+            ...p,
+            id: newId,
+            posisi_x: p.posisi_x + offset,
+            posisi_y: p.posisi_y + offset,
+            nama_perangkat: `${p.nama_perangkat} (Salinan)`,
+            ip_address: '', // IP dikosongkan agar tidak duplikat conflict
+          };
+        });
+      setPerangkat((prev) => [...prev, ...dupDev]);
+    }
+
+    // Duplikat Ruangan
+    const roomIds = new Set(itemsToDup.filter((i) => i.type === 'ruangan').map((i) => i.id));
+    if (roomIds.size > 0) {
+      const dupRooms: Ruangan[] = ruangan
+        .filter((r) => roomIds.has(r.id))
+        .map((r) => {
+          const newId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'ruangan', id: newId });
+          return {
+            ...r,
+            id: newId,
+            nama_ruangan: `${r.nama_ruangan} (Salinan)`,
+            polygon_points: r.polygon_points.map((pt) => ({ x: pt.x + offset, y: pt.y + offset })),
+          };
+        });
+      setRuangan((prev) => [...prev, ...dupRooms]);
+    }
+
+    // Duplikat Kabel
+    const cableIds = new Set(itemsToDup.filter((i) => i.type === 'kabel').map((i) => i.id));
+    if (cableIds.size > 0) {
+      const dupCables: KabelJalur[] = kabel
+        .filter((k) => cableIds.has(k.id))
+        .map((k) => {
+          const newId = `kabel-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          newSelected.push({ type: 'kabel', id: newId });
+          return {
+            ...k,
+            id: newId,
+            kode_kabel: `${k.kode_kabel}-DUP`,
+            waypoints: k.waypoints.map((pt) => ({ x: pt.x + offset, y: pt.y + offset })),
+            perangkat_asal_id: null,
+            perangkat_tujuan_id: null,
+          };
+        });
+      setKabel((prev) => [...prev, ...dupCables]);
+    }
+
+    // Aktifkan seleksi ke item baru yang telah diduplikat
+    if (newSelected.length === 1) {
+      setSelectedItem(newSelected[0]);
+      setSelectedItems(newSelected);
+    } else if (newSelected.length > 1) {
+      setSelectedItem({ type: 'multi', id: 'multi' });
+      setSelectedItems(newSelected);
+    }
+    showToast(`${newSelected.length} elemen berhasil diduplikat (Ctrl+D)`);
+  };
+
+  // 6. Fitur Align Objek (Rata Kiri, Tengah, Kanan, Atas, dsb.)
+  const handleAlignSelected = (
+    alignment: 'left' | 'center_h' | 'right' | 'top' | 'center_v' | 'bottom' | 'distribute_h' | 'distribute_v'
+  ) => {
+    if (selectedItems.length < 2) return;
+
+    // Kumpulkan objek dengan posisi X & Y (Furniture, Perangkat, Bukaan)
+    const activeFurn = furniture.filter((f) => selectedItems.some((s) => s.type === 'furniture' && s.id === f.id));
+    const activeDev = perangkat.filter((p) => selectedItems.some((s) => s.type === 'perangkat' && s.id === p.id));
+    const activeBukaan = bukaan.filter((b) => selectedItems.some((s) => s.type === 'bukaan' && s.id === b.id));
+
+    // Kumpulkan seluruh titik referensi posisi objek
+    const allItems: Array<{ type: string; id: string; x: number; y: number }> = [
+      ...activeFurn.map((f) => ({ type: 'furniture', id: f.id, x: f.posisi_x, y: f.posisi_y })),
+      ...activeDev.map((p) => ({ type: 'perangkat', id: p.id, x: p.posisi_x, y: p.posisi_y })),
+      ...activeBukaan.map((b) => ({ type: 'bukaan', id: b.id, x: b.posisi_x, y: b.posisi_y })),
+    ];
+
+    if (allItems.length < 2) return;
+
+    const xs = allItems.map((i) => i.x);
+    const ys = allItems.map((i) => i.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const midX = (minX + maxX) / 2;
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const midY = (minY + maxY) / 2;
+
+    const updatedPosMap = new Map<string, { x: number; y: number }>();
+
+    if (alignment === 'left') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: minX, y: i.y }));
+    } else if (alignment === 'center_h') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: midX, y: i.y }));
+    } else if (alignment === 'right') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: maxX, y: i.y }));
+    } else if (alignment === 'top') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: i.x, y: minY }));
+    } else if (alignment === 'center_v') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: i.x, y: midY }));
+    } else if (alignment === 'bottom') {
+      allItems.forEach((i) => updatedPosMap.set(i.id, { x: i.x, y: maxY }));
+    } else if (alignment === 'distribute_h') {
+      // Sebar rata secara horisontal
+      const sorted = [...allItems].sort((a, b) => a.x - b.x);
+      const span = maxX - minX;
+      const step = span / (sorted.length - 1);
+      sorted.forEach((item, idx) => {
+        updatedPosMap.set(item.id, { x: minX + idx * step, y: item.y });
+      });
+    } else if (alignment === 'distribute_v') {
+      // Sebar rata secara vertikal
+      const sorted = [...allItems].sort((a, b) => a.y - b.y);
+      const span = maxY - minY;
+      const step = span / (sorted.length - 1);
+      sorted.forEach((item, idx) => {
+        updatedPosMap.set(item.id, { x: item.x, y: minY + idx * step });
+      });
+    }
+
+    // Simpan posisi yang telah diratakan
+    if (activeFurn.length > 0) {
+      setFurniture((prev) =>
+        prev.map((f) => {
+          const pos = updatedPosMap.get(f.id);
+          return pos ? { ...f, posisi_x: pos.x, posisi_y: pos.y } : f;
+        })
+      );
+    }
+    if (activeDev.length > 0) {
+      setPerangkat((prev) =>
+        prev.map((p) => {
+          const pos = updatedPosMap.get(p.id);
+          return pos ? { ...p, posisi_x: pos.x, posisi_y: pos.y } : p;
+        })
+      );
+    }
+    if (activeBukaan.length > 0) {
+      setBukaan((prev) =>
+        prev.map((b) => {
+          const pos = updatedPosMap.get(b.id);
+          return pos ? { ...b, posisi_x: pos.x, posisi_y: pos.y } : b;
+        })
+      );
+    }
+    showToast(`Perataan objek selesai`);
+  };
+
   // Upload Foto / Sketsa Denah untuk Dijiplak (Underlay Tracing)
   const handleUploadJiplakan = (file: File) => {
     if (!lantai) {
@@ -795,6 +1021,11 @@ export function App() {
           handleExportImage();
           return;
         }
+        if (k === 'd') {
+          e.preventDefault();
+          handleDuplicateSelected();
+          return;
+        }
       }
 
       // Shortcut satu huruf
@@ -850,7 +1081,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan, handleUndo, handleRedo]);
+  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan, handleUndo, handleRedo, handleDuplicateSelected]);
 
   return (
     <div className="flex flex-col w-screen h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -1031,6 +1262,7 @@ export function App() {
               theme={theme}
               layerVisibility={layerVisibility}
               onSelectLayerVisibility={setLayerVisibility}
+              onDuplicate={handleDuplicateSelected}
             />
 
             {/* Toolbar Melayang Pengaturan Gambar Jiplakan */}
@@ -1084,6 +1316,9 @@ export function App() {
               onUpdatePerangkat={setPerangkat}
               onUpdateKabel={setKabel}
               onDeleteSelected={handleDeleteSelected}
+              onDuplicate={handleDuplicateSelected}
+              onAlign={handleAlignSelected}
+              onSelectItem={handleSelectItem}
               onClose={() => setIsRightSidebarOpen(false)}
             />
           </div>
@@ -1179,6 +1414,7 @@ export function App() {
             theme={theme}
             layerVisibility={layerVisibility}
             onSelectLayerVisibility={setLayerVisibility}
+            onDuplicate={handleDuplicateSelected}
           />
         </PopoutWindow>
       )}

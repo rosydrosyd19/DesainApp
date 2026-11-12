@@ -148,9 +148,10 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
       </div>
 
       {/* Panel Jiplakan Foto / Underlay Tracing di Layar 1 */}
-      <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3.5 shadow-lg">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-          <div className="flex items-center space-x-3 min-w-0">
+      <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3.5 shadow-lg overflow-hidden">
+        {/* Header Bersih & Responsif: Judul Tidak Terpotong */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center space-x-3">
             <div
               className={`p-2.5 rounded-xl border shrink-0 ${
                 jiplakan
@@ -162,9 +163,9 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
             >
               <ImageIcon className="w-5 h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-white tracking-wide whitespace-nowrap">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-white tracking-wide">
                   Jiplakan Foto & Cetak Biru Denah
                 </span>
                 {jiplakan && (
@@ -185,7 +186,7 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
             <input
               type="file"
               ref={deckFileInputRef}
@@ -198,32 +199,6 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
                 }
               }}
             />
-
-            {/* Tombol Tampilkan / Sembunyikan (Show & Hide) */}
-            {jiplakan && (
-              <button
-                type="button"
-                onClick={() => onUpdateJiplakan?.({ ...jiplakan, is_visible: !jiplakan.is_visible })}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition border cursor-pointer ${
-                  jiplakan.is_visible
-                    ? 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-500/40'
-                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
-                }`}
-                title={jiplakan.is_visible ? 'Sembunyikan foto jiplakan dari kanvas' : 'Tampilkan kembali foto jiplakan di kanvas'}
-              >
-                {jiplakan.is_visible ? (
-                  <>
-                    <Eye className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                    <span>Sembunyikan</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Tampilkan Foto</span>
-                  </>
-                )}
-              </button>
-            )}
 
             <button
               type="button"
@@ -275,7 +250,7 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
               </div>
             </div>
 
-            {/* 2. Visibilitas (Show/Hide), Kunci Posisi & Rotasi Sudut */}
+            {/* 2. Visibilitas (Show/Hide), Kunci Posisi & Rotasi Sudut (Rapi & Longgar, Anti Tumpuk) */}
             <div className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-xl flex flex-col justify-between space-y-2.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 font-medium">Posisi & Visibilitas:</span>
@@ -289,93 +264,148 @@ export const StudioControlDeck: React.FC<StudioControlDeckProps> = ({
                   {jiplakan.is_visible ? 'Aktif' : 'Sembunyi'}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {/* Tombol Show/Hide */}
-                <button
-                  type="button"
-                  onClick={() => onUpdateJiplakan?.({ ...jiplakan, is_visible: !jiplakan.is_visible })}
-                  className={`py-2 px-1.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition cursor-pointer min-h-[58px] ${
-                    jiplakan.is_visible
-                      ? 'bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border-sky-500/40 shadow-sm'
-                      : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                  }`}
-                  title={jiplakan.is_visible ? 'Sembunyikan foto dari kanvas' : 'Tampilkan foto di kanvas'}
-                >
-                  {jiplakan.is_visible ? (
-                    <Eye className="w-4 h-4 text-sky-400 shrink-0" />
-                  ) : (
-                    <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
-                  )}
-                  <span className="text-[11px] leading-tight font-medium text-center">
-                    {jiplakan.is_visible ? 'Tampil' : 'Sembunyi'}
-                  </span>
-                </button>
 
-                {/* Tombol Kunci */}
-                <button
-                  type="button"
-                  onClick={() => onUpdateJiplakan?.({ ...jiplakan, is_locked: !jiplakan.is_locked })}
-                  className={`py-2 px-1.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition cursor-pointer min-h-[58px] ${
-                    jiplakan.is_locked
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40 shadow-sm'
-                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
-                  }`}
-                  title={jiplakan.is_locked ? 'Foto terkunci, tidak dapat digeser' : 'Foto bebas digeser di kanvas'}
-                >
-                  {jiplakan.is_locked ? (
-                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                  ) : (
-                    <Unlock className="w-4 h-4 text-emerald-400 shrink-0" />
-                  )}
-                  <span className="text-[11px] leading-tight font-medium text-center">
-                    {jiplakan.is_locked ? 'Terkunci' : 'Bebas'}
-                  </span>
-                </button>
+              {/* 2 Baris Tombol yang Bersih dan Luas */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Tombol Tampil / Sembunyi */}
+                  <button
+                    type="button"
+                    onClick={() => onUpdateJiplakan?.({ ...jiplakan, is_visible: !jiplakan.is_visible })}
+                    className={`py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition cursor-pointer overflow-hidden ${
+                      jiplakan.is_visible
+                        ? 'bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border-sky-500/40 shadow-sm'
+                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                    }`}
+                    title={jiplakan.is_visible ? 'Sembunyikan foto dari kanvas' : 'Tampilkan foto di kanvas'}
+                  >
+                    {jiplakan.is_visible ? (
+                      <Eye className="w-4 h-4 text-sky-400 shrink-0" />
+                    ) : (
+                      <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
+                    )}
+                    <span className="truncate">{jiplakan.is_visible ? 'Tampil' : 'Sembunyi'}</span>
+                  </button>
 
-                {/* Tombol Rotasi */}
+                  {/* Tombol Kunci / Bebas */}
+                  <button
+                    type="button"
+                    onClick={() => onUpdateJiplakan?.({ ...jiplakan, is_locked: !jiplakan.is_locked })}
+                    className={`py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 border transition cursor-pointer overflow-hidden ${
+                      jiplakan.is_locked
+                        ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40 shadow-sm'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                    }`}
+                    title={jiplakan.is_locked ? 'Foto terkunci, tidak dapat digeser' : 'Foto bebas digeser di kanvas'}
+                  >
+                    {jiplakan.is_locked ? (
+                      <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                    ) : (
+                      <Unlock className="w-4 h-4 text-emerald-400 shrink-0" />
+                    )}
+                    <span className="truncate">{jiplakan.is_locked ? 'Terkunci' : 'Bebas'}</span>
+                  </button>
+                </div>
+
+                {/* Tombol Rotasi 90 Derajat Penuh */}
                 <button
                   type="button"
                   onClick={() => onUpdateJiplakan?.({ ...jiplakan, rotasi: ((jiplakan.rotasi || 0) + 90) % 360 })}
-                  className="py-2 px-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-slate-600 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 transition cursor-pointer min-h-[58px]"
+                  className="w-full py-1.5 px-2 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
                   title="Putar 90 Derajat Searah Jarum Jam"
                 >
-                  <RotateCw className="w-4 h-4 text-sky-400 shrink-0" />
-                  <span className="text-[11px] leading-tight font-medium text-slate-200 text-center">
-                    Putar ({jiplakan.rotasi || 0}°)
-                  </span>
+                  <RotateCw className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>Putar ({jiplakan.rotasi || 0}°)</span>
                 </button>
               </div>
+
               <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
                 <span>{jiplakan.is_visible ? '● Kanvas Tampil' : '○ Disembunyikan'}</span>
                 <span>{jiplakan.is_locked ? '🔒 Terkunci' : '🔓 Bebas Geser'}</span>
               </div>
             </div>
 
-            {/* 3. Kalibrasi Skala 2 Titik Presisi */}
+            {/* 3. Pengaturan Skala Ukuran & Kalibrasi 2 Titik Presisi */}
             <div className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-xl flex flex-col justify-between space-y-2.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">Kalibrasi Skala CAD:</span>
+                <span className="text-slate-400 font-medium">Ubah Skala Gambar:</span>
                 <span className="font-mono font-bold text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/40 text-[10px]">
-                  {jiplakan.skala ? `Skala ${(jiplakan.skala).toFixed(2)}x` : 'CAD 1:1'}
+                  {jiplakan.skala ? `Skala ${(jiplakan.skala).toFixed(2)}x` : '1.00x'}
                 </span>
               </div>
+
+              {/* Tombol Perbesar / Perkecil Skala Cepat */}
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateJiplakan?.({
+                      ...jiplakan,
+                      skala: Math.max(0.1, Number(((jiplakan.skala || 1) - 0.1).toFixed(2))),
+                    })
+                  }
+                  className="py-1 px-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 rounded-lg text-xs font-semibold flex items-center justify-center transition cursor-pointer"
+                  title="Perkecil Ukuran Gambar (Kecilkan 10%)"
+                >
+                  - 10%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateJiplakan?.({ ...jiplakan, skala: 1.0 })}
+                  className="py-1 px-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 rounded-lg text-xs font-semibold flex items-center justify-center transition cursor-pointer"
+                  title="Kembalikan ke Skala Normal 1.0x"
+                >
+                  Reset 1x
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateJiplakan?.({
+                      ...jiplakan,
+                      skala: Math.min(10.0, Number(((jiplakan.skala || 1) + 0.1).toFixed(2))),
+                    })
+                  }
+                  className="py-1 px-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 rounded-lg text-xs font-semibold flex items-center justify-center transition cursor-pointer"
+                  title="Perbesar Ukuran Gambar (Tambah 10%)"
+                >
+                  + 10%
+                </button>
+              </div>
+
+              {/* Slider Skala Halus */}
+              <div className="px-1">
+                <input
+                  type="range"
+                  min="0.1"
+                  max="5.0"
+                  step="0.05"
+                  value={jiplakan.skala || 1.0}
+                  onChange={(e) =>
+                    onUpdateJiplakan?.({ ...jiplakan, skala: parseFloat(e.target.value) })
+                  }
+                  className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                  title="Geser slider untuk mengubah perbesaran gambar"
+                />
+              </div>
+
+              {/* Tombol Kalibrasi 2 Titik Presisi */}
               <button
                 type="button"
                 onClick={onStartCalibration}
-                className={`w-full h-[58px] rounded-xl text-xs font-semibold flex flex-col items-center justify-center space-y-1 border transition cursor-pointer ${
+                className={`w-full py-1.5 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 border transition cursor-pointer ${
                   isCalibratingTracing
                     ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30 animate-pulse'
                     : 'bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border-emerald-800/60'
                 }`}
                 title="Kalibrasi 2 Titik Presisi di Kanvas Denah"
               >
-                <Compass className="w-5 h-5 text-emerald-400 shrink-0" />
-                <span className="text-[11px] leading-tight">
+                <Compass className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-[11px]">
                   {isCalibratingTracing ? 'Klik 2 Titik di Kanvas...' : 'Kalibrasi Skala 2 Titik'}
                 </span>
               </button>
               <div className="text-[10px] text-slate-500 leading-tight">
-                Ukur 2 titik di kanvas untuk mencocokkan ke skala meter nyata.
+                💡 Anda juga bisa menarik kotak sudut gambar langsung di kanvas untuk resize bebas!
               </div>
             </div>
           </div>
