@@ -261,6 +261,19 @@ export function generateWhitePaperBlueprint(options: ExportBlueprintOptions): HT
     const typeInfo = kabelTipe.find((t) => t.id === c.tipe_kabel_id);
     const color = typeInfo?.warna_hex || c.warna_hex || '#2563eb';
 
+    // Halo / Outline Tepi Luar (memastikan kabel kontras di atas dinding)
+    ctx.beginPath();
+    ctx.moveTo(c.waypoints[0].x, c.waypoints[0].y);
+    for (let i = 1; i < c.waypoints.length; i++) {
+      ctx.lineTo(c.waypoints[i].x, c.waypoints[i].y);
+    }
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5.0;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Garis Inti Kabel
     ctx.beginPath();
     ctx.moveTo(c.waypoints[0].x, c.waypoints[0].y);
     for (let i = 1; i < c.waypoints.length; i++) {
@@ -269,6 +282,7 @@ export function generateWhitePaperBlueprint(options: ExportBlueprintOptions): HT
     ctx.strokeStyle = color;
     ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.stroke();
 
     // Titik sambungan waypoint

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ToolType,
   Proyek,
@@ -11,6 +11,8 @@ import {
   KabelJalur,
   KabelTipe,
   Point,
+  DenahJiplakan,
+  LayerVisibility,
 } from './types/schema.ts';
 import { Header } from './components/Header.tsx';
 import { SidebarCatalog } from './components/SidebarCatalog.tsx';
@@ -22,8 +24,19 @@ import { PopoutWindow } from './components/PopoutWindow.tsx';
 import { PopoutCanvasView } from './components/PopoutCanvasView.tsx';
 import { PresentationView } from './components/PresentationView.tsx';
 import { StudioControlDeck } from './components/StudioControlDeck.tsx';
+import { TracingToolbar } from './components/TracingToolbar.tsx';
 import { generateWhitePaperBlueprint } from './utils/exportBlueprint.ts';
 import { PanelLeft, PanelRight, ChevronLeft, ChevronRight } from 'lucide-react';
+
+interface HistorySnapshot {
+  dinding: Dinding[];
+  bukaan: Bukaan[];
+  ruangan: Ruangan[];
+  furniture: Furniture[];
+  perangkat: Perangkat[];
+  kabel: KabelJalur[];
+  jiplakan: DenahJiplakan | null;
+}
 
 export function App() {
   // Database & Project state
@@ -113,6 +126,168 @@ export function App() {
   const [underlayFloorId, setUnderlayFloorId] = useState<string | null>(null);
   const [underlayData, setUnderlayData] = useState<{ dinding: Dinding[]; ruangan: Ruangan[] } | null>(null);
 
+  // Tracing / Jiplakan Denah State
+  const [jiplakan, setJiplakan] = useState<DenahJiplakan | null>(null);
+  const [isCalibratingTracing, setIsCalibratingTracing] = useState(false);
+  const [visibleCableType, setVisibleCableType] = useState<string>('all');
+
+  // Theme State (Dark / Light Mode)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('color-scheme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
+
+  const handleToggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem('color-scheme', next);
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    if (meta) meta.setAttribute('content', next);
+    if (next === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    }
+  };
+
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    if (meta) meta.setAttribute('content', theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
+
+  // Layer Visibility Filter (Semua, Dinding, Ruangan, Kabel, Perangkat, Furniture)
+  const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>('all');
+
+  // History Undo & Redo State
+  const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
+  const isUndoingRedoingRef = useRef<boolean>(false);
+  const lastSnapshotRef = useRef<HistorySnapshot | null>(null);
+  const isInitialLoadRef = useRef<boolean>(true);
+
+  // Helper cek apakah terjadi perubahan elemen CAD
+  const hasSnapshotChanged = (s1: HistorySnapshot | null, s2: HistorySnapshot): boolean => {
+    if (!s1) return true;
+    return (
+      s1.dinding !== s2.dinding ||
+      s1.bukaan !== s2.bukaan ||
+      s1.ruangan !== s2.ruangan ||
+      s1.furniture !== s2.furniture ||
+      s1.perangkat !== s2.perangkat ||
+      s1.kabel !== s2.kabel ||
+      s1.jiplakan !== s2.jiplakan
+    );
+  };
+
+  // Rekam riwayat snapshot saat state CAD berubah
+  useEffect(() => {
+    const currentSnapshot: HistorySnapshot = {
+      dinding,
+      bukaan,
+      ruangan,
+      furniture,
+      perangkat,
+      kabel,
+      jiplakan,
+    };
+
+    if (isInitialLoadRef.current) {
+      lastSnapshotRef.current = currentSnapshot;
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    if (isUndoingRedoingRef.current) {
+      isUndoingRedoingRef.current = false;
+      lastSnapshotRef.current = currentSnapshot;
+      return;
+    }
+
+    if (hasSnapshotChanged(lastSnapshotRef.current, currentSnapshot)) {
+      if (lastSnapshotRef.current) {
+        setUndoStack((prev) => [...prev.slice(-39), lastSnapshotRef.current!]);
+        setRedoStack([]);
+      }
+      lastSnapshotRef.current = currentSnapshot;
+    }
+  }, [dinding, bukaan, ruangan, furniture, perangkat, kabel, jiplakan]);
+
+  // Handler Undo
+  const handleUndo = useCallback(() => {
+    setUndoStack((prevUndo) => {
+      if (prevUndo.length === 0) return prevUndo;
+      const prevSnapshot = prevUndo[prevUndo.length - 1];
+      const newUndo = prevUndo.slice(0, -1);
+      const currentSnapshot: HistorySnapshot = {
+        dinding,
+        bukaan,
+        ruangan,
+        furniture,
+        perangkat,
+        kabel,
+        jiplakan,
+      };
+
+      isUndoingRedoingRef.current = true;
+      setRedoStack((prevRedo) => [...prevRedo.slice(-39), currentSnapshot]);
+
+      setDinding(prevSnapshot.dinding);
+      setBukaan(prevSnapshot.bukaan);
+      setRuangan(prevSnapshot.ruangan);
+      setFurniture(prevSnapshot.furniture);
+      setPerangkat(prevSnapshot.perangkat);
+      setKabel(prevSnapshot.kabel);
+      setJiplakan(prevSnapshot.jiplakan ?? null);
+      lastSnapshotRef.current = prevSnapshot;
+      handleSelectItem(null);
+
+      return newUndo;
+    });
+  }, [dinding, bukaan, ruangan, furniture, perangkat, kabel, jiplakan]);
+
+  // Handler Redo
+  const handleRedo = useCallback(() => {
+    setRedoStack((prevRedo) => {
+      if (prevRedo.length === 0) return prevRedo;
+      const nextSnapshot = prevRedo[prevRedo.length - 1];
+      const newRedo = prevRedo.slice(0, -1);
+      const currentSnapshot: HistorySnapshot = {
+        dinding,
+        bukaan,
+        ruangan,
+        furniture,
+        perangkat,
+        kabel,
+        jiplakan,
+      };
+
+      isUndoingRedoingRef.current = true;
+      setUndoStack((prevUndo) => [...prevUndo.slice(-39), currentSnapshot]);
+
+      setDinding(nextSnapshot.dinding);
+      setBukaan(nextSnapshot.bukaan);
+      setRuangan(nextSnapshot.ruangan);
+      setFurniture(nextSnapshot.furniture);
+      setPerangkat(nextSnapshot.perangkat);
+      setKabel(nextSnapshot.kabel);
+      setJiplakan(nextSnapshot.jiplakan ?? null);
+      lastSnapshotRef.current = nextSnapshot;
+      handleSelectItem(null);
+
+      return newRedo;
+    });
+  }, [dinding, bukaan, ruangan, furniture, perangkat, kabel, jiplakan]);
+
   // 1. Periksa Status MariaDB saat Startup
   useEffect(() => {
     checkDatabaseHealth();
@@ -174,6 +349,9 @@ export function App() {
     if (underlayFloorId === floorId) {
       setUnderlayFloorId(null);
     }
+    setUndoStack([]);
+    setRedoStack([]);
+    isInitialLoadRef.current = true;
     try {
       const res = await fetch(`/api/proyek/lantai/${floorId}/full`);
       if (res.ok) {
@@ -190,6 +368,8 @@ export function App() {
         if (data.proyek?.skala_px_per_meter) {
           setScalePxPerMeter(data.proyek.skala_px_per_meter);
         }
+        setJiplakan(data.jiplakan || null);
+        setIsCalibratingTracing(false);
       }
     } catch (err) {
       console.error('Gagal memuat data lantai:', err);
@@ -274,6 +454,7 @@ export function App() {
         furniture,
         perangkat,
         kabel,
+        jiplakan,
       };
 
       const res = await fetch(`/api/proyek/lantai/${lantai.id}/save-all`, {
@@ -297,6 +478,77 @@ export function App() {
   const showToast = (msg: string) => {
     setSaveNotification(msg);
     setTimeout(() => setSaveNotification(null), 4000);
+  };
+
+  // Upload Foto / Sketsa Denah untuk Dijiplak (Underlay Tracing)
+  const handleUploadJiplakan = (file: File) => {
+    if (!lantai) {
+      showToast('Pilih atau buat lantai terlebih dahulu sebelum mengunggah gambar jiplakan.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const naturalW = img.naturalWidth || 800;
+        const naturalH = img.naturalHeight || 600;
+
+        // Hitung posisi awal agar tepat berada di tengah kanvas
+        const canvasW = window.innerWidth;
+        const canvasH = window.innerHeight;
+        const centerWorldX = (canvasW / 2 - panOffset.x) / zoom;
+        const centerWorldY = (canvasH / 2 - panOffset.y) / zoom;
+
+        const newJiplakan: DenahJiplakan = {
+          id: `trc-${Date.now()}`,
+          lantai_id: lantai.id,
+          image_url: dataUrl,
+          posisi_x: Math.round(centerWorldX - naturalW / 2),
+          posisi_y: Math.round(centerWorldY - naturalH / 2),
+          lebar_px: naturalW,
+          tinggi_px: naturalH,
+          skala: 1.0,
+          rotasi: 0,
+          opacity: 0.5,
+          is_locked: false,
+          is_visible: true,
+        };
+
+        setJiplakan(newJiplakan);
+        showToast('Gambar jiplakan dimuat! Atur transparansi, geser, atau kalibrasi ukuran.');
+
+        // Simpan langsung ke backend
+        fetch(`/api/proyek/lantai/${lantai.id}/jiplakan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newJiplakan),
+        }).catch((err) => console.error('Gagal menyimpan gambar jiplakan ke DB:', err));
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateJiplakan = (updated: DenahJiplakan | null) => {
+    setJiplakan(updated);
+  };
+
+  const handleDeleteJiplakan = async () => {
+    if (!lantai) return;
+    if (window.confirm('Hapus gambar jiplakan dari denah lantai ini?')) {
+      setJiplakan(null);
+      setIsCalibratingTracing(false);
+      try {
+        await fetch(`/api/proyek/lantai/${lantai.id}/jiplakan`, { method: 'DELETE' });
+        showToast('Gambar jiplakan berhasil dihapus.');
+      } catch (err) {
+        console.error('Gagal menghapus gambar jiplakan:', err);
+      }
+    }
   };
 
   // Ubah Ketinggian Atap / Plafon Lantai & Opsi Sinkronisasi Massal Kabel
@@ -468,8 +720,8 @@ export function App() {
     }
   };
 
-  // 5. Export Gambar Denah Kertas Putih Tanpa Grid (Architectural Blueprint Sheet)
-  const handleExportImage = () => {
+  // 5. Export Gambar Denah Kertas Putih (Architectural Blueprint Sheet - Dengan / Tanpa Grid)
+  const handleExportImage = (includeGrid: boolean = true) => {
     try {
       const blueprintCanvas = generateWhitePaperBlueprint({
         proyek,
@@ -482,13 +734,19 @@ export function App() {
         kabel,
         kabelTipe,
         scalePxPerMeter,
+        includeGrid,
       });
 
+      const suffix = includeGrid ? 'Grid' : 'Polos';
       const link = document.createElement('a');
-      link.download = `Denah_Bangunan_IT_${lantai?.nama_lantai || 'Lantai1'}.png`;
+      link.download = `Denah_Bangunan_IT_${lantai?.nama_lantai || 'Lantai1'}_${suffix}.png`;
       link.href = blueprintCanvas.toDataURL('image/png');
       link.click();
-      showToast('Denah arsitektur dengan grid tipis rapi berhasil di-export ke PNG!');
+      showToast(
+        includeGrid
+          ? 'Denah arsitektur DENGAN grid CAD (petak 1m & 20cm) berhasil di-export ke PNG!'
+          : 'Denah arsitektur TANPA grid (kertas putih polos) berhasil di-export ke PNG!'
+      );
     } catch (err) {
       console.error('Gagal export gambar:', err);
       showToast('Gagal melakukan export denah.');
@@ -507,6 +765,16 @@ export function App() {
       // Kombinasi tombol Ctrl / Cmd
       if (e.ctrlKey || e.metaKey) {
         const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          handleUndo();
+          return;
+        }
+        if (k === 'y' || (k === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          handleRedo();
+          return;
+        }
         if (k === 's') {
           e.preventDefault();
           handleSaveToDb();
@@ -582,7 +850,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan]);
+  }, [selectedItem, selectedItems, dinding, bukaan, furniture, perangkat, kabel, ruangan, handleUndo, handleRedo]);
 
   return (
     <div className="flex flex-col w-screen h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -631,6 +899,14 @@ export function App() {
         onOpenProjectModal={() => setIsProjectModalOpen(true)}
         onExportImage={handleExportImage}
         isSaving={isSaving}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        hasJiplakan={Boolean(jiplakan)}
+        onUploadJiplakan={handleUploadJiplakan}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Area Kerja Tengah (Sidebar + Canvas CAD / Studio Deck + Inspector) */}
@@ -641,15 +917,15 @@ export function App() {
             isLeftSidebarOpen ? 'w-80' : 'w-0'
           }`}
         >
-          {/* Tombol Tab Cepat Tutup Katalog di Garis Batas Kanan */}
+          {/* Tombol Tab Cepat Tutup Katalog di Garis Batas Kanan (Tengah Vertikal) */}
           {isLeftSidebarOpen && (
             <button
               type="button"
               onClick={() => setIsLeftSidebarOpen(false)}
-              className="absolute -right-6 top-3 z-30 p-1 bg-slate-900/95 hover:bg-slate-800 text-sky-400 hover:text-white border border-slate-700/80 rounded-r-md shadow-xl flex items-center justify-center transition"
+              className="absolute -right-5 top-1/2 -translate-y-1/2 z-30 py-3.5 px-0.5 bg-slate-900/95 hover:bg-sky-600 text-slate-400 hover:text-white border-y border-r border-slate-700/80 rounded-r-lg shadow-2xl flex items-center justify-center transition group cursor-pointer"
               title="Tutup Sidebar Katalog [ [ ]"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5 group-hover:scale-110 transition" />
             </button>
           )}
 
@@ -660,6 +936,8 @@ export function App() {
               kabelTipe={kabelTipe}
               selectedCableTypeId={selectedCableTypeId}
               onSelectCableType={(id) => setSelectedCableTypeId(id)}
+              visibleCableType={visibleCableType}
+              onSelectVisibleCableType={setVisibleCableType}
             />
           </div>
         </div>
@@ -678,6 +956,12 @@ export function App() {
             onExportImage={handleExportImage}
             onSaveToDb={handleSaveToDb}
             isSaving={isSaving}
+            jiplakan={jiplakan}
+            onUpdateJiplakan={handleUpdateJiplakan}
+            onUploadJiplakan={handleUploadJiplakan}
+            onDeleteJiplakan={handleDeleteJiplakan}
+            isCalibratingTracing={isCalibratingTracing}
+            onStartCalibration={() => setIsCalibratingTracing((prev) => !prev)}
           />
         ) : (
           <div className="flex-1 h-full relative">
@@ -736,7 +1020,29 @@ export function App() {
               zoom={zoom}
               panOffset={panOffset}
               onPanChange={setPanOffset}
+              jiplakan={jiplakan}
+              onUpdateJiplakan={handleUpdateJiplakan}
+              onUploadJiplakan={handleUploadJiplakan}
+              isCalibratingTracing={isCalibratingTracing}
+              onCalibrationFinished={() => setIsCalibratingTracing(false)}
+              activeFloorId={lantai?.id}
+              visibleCableType={visibleCableType}
+              onSelectVisibleCableType={setVisibleCableType}
+              theme={theme}
+              layerVisibility={layerVisibility}
+              onSelectLayerVisibility={setLayerVisibility}
             />
+
+            {/* Toolbar Melayang Pengaturan Gambar Jiplakan */}
+            {jiplakan && (
+              <TracingToolbar
+                jiplakan={jiplakan}
+                onUpdateJiplakan={handleUpdateJiplakan}
+                onDelete={handleDeleteJiplakan}
+                isCalibrating={isCalibratingTracing}
+                onStartCalibration={() => setIsCalibratingTracing((prev) => !prev)}
+              />
+            )}
           </div>
         )}
 
@@ -746,15 +1052,15 @@ export function App() {
             isRightSidebarOpen ? 'w-80' : 'w-0'
           }`}
         >
-          {/* Tombol Tab Cepat Tutup Inspector di Garis Batas Kiri */}
+          {/* Tombol Tab Cepat Tutup Inspector di Garis Batas Kiri (Tengah Vertikal) */}
           {isRightSidebarOpen && (
             <button
               type="button"
               onClick={() => setIsRightSidebarOpen(false)}
-              className="absolute -left-6 top-3 z-30 p-1 bg-slate-900/95 hover:bg-slate-800 text-sky-400 hover:text-white border border-slate-700/80 rounded-l-md shadow-xl flex items-center justify-center transition"
+              className="absolute -left-5 top-1/2 -translate-y-1/2 z-30 py-3.5 px-0.5 bg-slate-900/95 hover:bg-sky-600 text-slate-400 hover:text-white border-y border-l border-slate-700/80 rounded-l-lg shadow-2xl flex items-center justify-center transition group cursor-pointer"
               title="Tutup Panel Inspector [ ] ]"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5 group-hover:scale-110 transition" />
             </button>
           )}
 
@@ -857,6 +1163,22 @@ export function App() {
             panOffset={panOffset}
             onPanChange={setPanOffset}
             onDockBack={() => setDualScreenMode('none')}
+            canUndo={undoStack.length > 0}
+            canRedo={redoStack.length > 0}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            jiplakan={jiplakan}
+            onUpdateJiplakan={handleUpdateJiplakan}
+            onUploadJiplakan={handleUploadJiplakan}
+            onDeleteJiplakan={handleDeleteJiplakan}
+            isCalibratingTracing={isCalibratingTracing}
+            onStartCalibration={() => setIsCalibratingTracing((prev) => !prev)}
+            onCalibrationFinished={() => setIsCalibratingTracing(false)}
+            visibleCableType={visibleCableType}
+            onSelectVisibleCableType={setVisibleCableType}
+            theme={theme}
+            layerVisibility={layerVisibility}
+            onSelectLayerVisibility={setLayerVisibility}
           />
         </PopoutWindow>
       )}

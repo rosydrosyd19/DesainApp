@@ -214,6 +214,7 @@ router.get('/lantai/:floorId/full', async (req, res) => {
     `, [floorId]);
 
     const [kabelTipe]: any = await pool.query('SELECT * FROM kabel_tipe');
+    const [jiplakan]: any = await pool.query('SELECT * FROM denah_jiplakan WHERE lantai_id = ?', [floorId]);
 
     res.json({
       proyek: proyek[0] || null,
@@ -222,9 +223,17 @@ router.get('/lantai/:floorId/full', async (req, res) => {
       bukaan,
       ruangan: ruangan.map((r: any) => ({ ...r, polygon_points: JSON.parse(r.polygon_points || '[]') })),
       furniture,
-      perangkat,
+      perangkat: perangkat.map((p: any) => ({
+        ...p,
+        port_notes: p.port_notes ? (typeof p.port_notes === 'string' ? JSON.parse(p.port_notes) : p.port_notes) : {},
+      })),
       kabel: kabel.map((c: any) => ({ ...c, waypoints: JSON.parse(c.waypoints || '[]') })),
       kabelTipe,
+      jiplakan: jiplakan.length > 0 ? {
+        ...jiplakan[0],
+        is_locked: Boolean(jiplakan[0].is_locked),
+        is_visible: Boolean(jiplakan[0].is_visible),
+      } : null,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -237,7 +246,7 @@ router.post('/lantai/:floorId/save-all', async (req, res) => {
   try {
     await conn.beginTransaction();
     const floorId = req.params.floorId;
-    const { proyek, lantai, dinding, bukaan, ruangan, furniture, perangkat, kabel } = req.body;
+    const { proyek, lantai, dinding, bukaan, ruangan, furniture, perangkat, kabel, jiplakan } = req.body;
 
     // Update info proyek & lantai jika ada
     if (proyek && proyek.id) {
@@ -298,12 +307,13 @@ router.post('/lantai/:floorId/save-all', async (req, res) => {
     for (const p of perangkat || []) {
       await conn.query(`
         INSERT INTO perangkat_terpasang
-        (id, lantai_id, furniture_id, kategori, nama_perangkat, model_merk, ip_address, mac_address, posisi_x, posisi_y, rotasi, cctv_fov_angle, cctv_jarak_meter, ap_radius_meter, rack_total_u, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, lantai_id, furniture_id, kategori, nama_perangkat, model_merk, ip_address, mac_address, posisi_x, posisi_y, rotasi, cctv_fov_angle, cctv_jarak_meter, ap_radius_meter, rack_total_u, switch_total_port, port_notes, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         p.id, floorId, p.furniture_id || null, p.kategori, p.nama_perangkat, p.model_merk || '',
         p.ip_address || '', p.mac_address || '', p.posisi_x, p.posisi_y, p.rotasi || 0,
-        p.cctv_fov_angle || 75.0, p.cctv_jarak_meter || 12.0, p.ap_radius_meter || 12.0, p.rack_total_u || 42, p.status || 'aktif'
+        p.cctv_fov_angle || 75.0, p.cctv_jarak_meter || 12.0, p.ap_radius_meter || 12.0, p.rack_total_u || 42,
+        p.switch_total_port || 24, JSON.stringify(p.port_notes || {}), p.status || 'aktif'
       ]);
     }
 
@@ -328,6 +338,31 @@ router.post('/lantai/:floorId/save-all', async (req, res) => {
       ]);
     }
 
+    // 6. Referensi Jiplakan Denah (Underlay Foto/Gambar)
+    if (jiplakan && jiplakan.image_url) {
+      await conn.query('DELETE FROM denah_jiplakan WHERE lantai_id = ?', [floorId]);
+      await conn.query(`
+        INSERT INTO denah_jiplakan
+        (id, lantai_id, image_url, posisi_x, posisi_y, lebar_px, tinggi_px, skala, rotasi, opacity, is_locked, is_visible)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        jiplakan.id || `jip-${Date.now()}`,
+        floorId,
+        jiplakan.image_url,
+        jiplakan.posisi_x || 0,
+        jiplakan.posisi_y || 0,
+        jiplakan.lebar_px || 800,
+        jiplakan.tinggi_px || 600,
+        jiplakan.skala || 1.0,
+        jiplakan.rotasi || 0,
+        jiplakan.opacity ?? 0.5,
+        jiplakan.is_locked ? 1 : 0,
+        jiplakan.is_visible !== false ? 1 : 0,
+      ]);
+    } else if (jiplakan === null) {
+      await conn.query('DELETE FROM denah_jiplakan WHERE lantai_id = ?', [floorId]);
+    }
+
     await conn.commit();
     res.json({ success: true, message: 'Denah dan mapping infrastruktur IT berhasil disimpan ke MariaDB!' });
   } catch (error: any) {
@@ -335,6 +370,53 @@ router.post('/lantai/:floorId/save-all', async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     conn.release();
+  }
+});
+
+// Endpoint Cepat Simpan/Perbarui Gambar Jiplakan Denah
+router.post('/lantai/:floorId/jiplakan', async (req, res) => {
+  try {
+    const floorId = req.params.floorId;
+    const data = req.body;
+    await pool.query('DELETE FROM denah_jiplakan WHERE lantai_id = ?', [floorId]);
+
+    if (data && data.image_url) {
+      const id = data.id || `jip-${Date.now()}`;
+      await pool.query(`
+        INSERT INTO denah_jiplakan
+        (id, lantai_id, image_url, posisi_x, posisi_y, lebar_px, tinggi_px, skala, rotasi, opacity, is_locked, is_visible)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        id,
+        floorId,
+        data.image_url,
+        data.posisi_x || 0,
+        data.posisi_y || 0,
+        data.lebar_px || 800,
+        data.tinggi_px || 600,
+        data.skala || 1.0,
+        data.rotasi || 0,
+        data.opacity ?? 0.5,
+        data.is_locked ? 1 : 0,
+        data.is_visible !== false ? 1 : 0,
+      ]);
+      res.json({ success: true, message: 'Gambar jiplakan berhasil disimpan ke MariaDB!', id });
+    } else {
+      res.json({ success: true, message: 'Gambar jiplakan dihapus dari MariaDB' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint Hapus Gambar Jiplakan Denah
+router.delete('/lantai/:floorId/jiplakan', async (req, res) => {
+  try {
+    const floorId = req.params.floorId;
+    await pool.query('DELETE FROM denah_jiplakan WHERE lantai_id = ?', [floorId]);
+    res.json({ success: true, message: 'Gambar jiplakan berhasil dihapus dari MariaDB' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 

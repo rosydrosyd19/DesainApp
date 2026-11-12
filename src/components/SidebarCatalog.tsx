@@ -23,6 +23,9 @@ import {
   Shield,
   Radio,
   Phone,
+  Filter,
+  Grid,
+  Shapes,
 } from 'lucide-react';
 
 interface SidebarCatalogProps {
@@ -31,6 +34,8 @@ interface SidebarCatalogProps {
   kabelTipe: KabelTipe[];
   selectedCableTypeId: string;
   onSelectCableType: (id: string) => void;
+  visibleCableType?: string;
+  onSelectVisibleCableType?: (id: string) => void;
 }
 
 type TabType = 'arsitektur' | 'furniture' | 'it_endpoints' | 'network_rack' | 'cctv_security' | 'kabel';
@@ -41,105 +46,112 @@ export const SidebarCatalog: React.FC<SidebarCatalogProps> = ({
   kabelTipe,
   selectedCableTypeId,
   onSelectCableType,
+  visibleCableType = 'all',
+  onSelectVisibleCableType,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('it_endpoints');
 
   return (
     <aside className="w-80 h-full bg-slate-900 border-r border-slate-800 flex flex-col z-10 shrink-0">
       {/* Tool Dasar CAD */}
-      <div className="p-3 border-b border-slate-800 bg-slate-950/40">
-        <div className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-          Alat Gambar CAD
+      <div className="p-3 border-b border-slate-800 bg-slate-950/50">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Alat Gambar CAD
+          </span>
+          <span className="text-[9px] text-slate-500 font-mono">
+            Pintas Keyboard
+          </span>
         </div>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-6 gap-1.5">
           <button
             type="button"
             onClick={() => onSelectTool('select')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'select'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Pilih & Pindahkan Objek / Multi-Select Box [V]"
           >
-            <MousePointer className="w-3.5 h-3.5 mb-0.5" />
-            <span>Pilih</span>
-            <span className="text-[8px] opacity-75 font-mono">[V]</span>
+            <MousePointer className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Pilih</span>
+            <span className="text-[8px] font-mono opacity-60">[V]</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('pan')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'pan'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Geser Tampilan Kanvas [H / Tahan Spasi]"
           >
-            <Hand className="w-3.5 h-3.5 mb-0.5" />
-            <span>Geser</span>
-            <span className="text-[8px] opacity-75 font-mono">[H]</span>
+            <Hand className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Geser</span>
+            <span className="text-[8px] font-mono opacity-60">[H]</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('wall')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'wall'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Tarik Dinding Berantai / Keliling Ruangan [W]"
           >
-            <Maximize2 className="w-3.5 h-3.5 mb-0.5" />
-            <span>Dinding</span>
-            <span className="text-[8px] opacity-75 font-mono">[W]</span>
+            <Maximize2 className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Dinding</span>
+            <span className="text-[8px] font-mono opacity-60">[W]</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('wall_box')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'wall_box'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Tarik Kotak Ruangan (4 Dinding Sekaligus) [B]"
           >
-            <Square className="w-3.5 h-3.5 mb-0.5" />
-            <span>Kotak</span>
-            <span className="text-[8px] opacity-75 font-mono">[B]</span>
+            <Square className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Kotak</span>
+            <span className="text-[8px] font-mono opacity-60">[B]</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('wall_circle')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'wall_circle'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Dinding Lingkaran Bulat Penuh [C]"
           >
-            <Circle className="w-3.5 h-3.5 mb-0.5" />
-            <span>Bulat</span>
-            <span className="text-[8px] opacity-75 font-mono">[C]</span>
+            <Circle className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Bulat</span>
+            <span className="text-[8px] font-mono opacity-60">[C]</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('measure')}
-            className={`p-1 flex flex-col items-center justify-center rounded-lg text-[9px] font-medium transition relative ${
+            className={`h-14 flex flex-col items-center justify-center rounded-xl p-1 transition cursor-pointer border ${
               tool === 'measure'
-                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-500 text-white border-amber-400 shadow-md shadow-amber-500/25 ring-1 ring-amber-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
             }`}
             title="Ukur Jarak Berbelok Multi-Titik [M]"
           >
-            <Ruler className="w-3.5 h-3.5 mb-0.5" />
-            <span>Ukur</span>
-            <span className="text-[8px] opacity-75 font-mono">[M]</span>
+            <Ruler className="w-4 h-4 mb-0.5 shrink-0" />
+            <span className="text-[10px] font-semibold leading-tight">Ukur</span>
+            <span className="text-[8px] font-mono opacity-60">[M]</span>
           </button>
         </div>
       </div>
@@ -289,6 +301,27 @@ export const SidebarCatalog: React.FC<SidebarCatalogProps> = ({
               </div>
             </button>
 
+            {/* Ruangan Bentuk L (6 Dinding Sekaligus) */}
+            <button
+              type="button"
+              onClick={() => onSelectTool('wall_l_shape')}
+              className={`w-full p-2.5 flex items-center space-x-3 rounded-lg border text-left transition group ${
+                tool === 'wall_l_shape'
+                  ? 'border-purple-500 bg-purple-500/15'
+                  : 'border-slate-800 bg-slate-800/40 hover:bg-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 group-hover:scale-105 transition">
+                <Maximize2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-slate-200">Ruangan Bentuk L (6 Dinding Sekaligus)</div>
+                <div className="text-[11px] text-slate-400">
+                  Solusi instan denah sudut L: tarik area untuk membuat 6 dinding ruangan L otomatis
+                </div>
+              </div>
+            </button>
+
             {/* Pintu Tunggal */}
             <button
               type="button"
@@ -412,6 +445,49 @@ export const SidebarCatalog: React.FC<SidebarCatalogProps> = ({
               <div>
                 <div className="text-xs font-semibold text-purple-300">Ruang Meeting & Rapat</div>
                 <div className="text-[10px] text-slate-400">Area rapat & konferensi</div>
+              </div>
+            </button>
+
+            {/* Zonasi Ruang Bentuk L */}
+            <button
+              type="button"
+              onClick={() =>
+                onSelectTool('place_room', {
+                  nama: 'Ruang Bentuk L (L-Shape Zone)',
+                  warna: 'rgba(236, 72, 153, 0.1)',
+                  w_m: 8,
+                  h_m: 6,
+                  is_l_shape: true,
+                })
+              }
+              className="w-full p-2.5 flex items-center space-x-3 rounded-lg border border-pink-900/30 bg-pink-950/20 hover:bg-pink-950/40 text-left transition group"
+            >
+              <div className="p-2 rounded-lg bg-pink-500/20 text-pink-400">
+                <Grid className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-pink-300">Ruangan Bentuk L (L-Shape Office)</div>
+                <div className="text-[10px] text-slate-400">Zonasi area non-kotak 6 titik sudut</div>
+              </div>
+            </button>
+
+            {/* Zonasi Poligon Bebas (L, T, U, N-Sudut) */}
+            <button
+              type="button"
+              onClick={() => onSelectTool('room_polygon')}
+              className={`w-full p-2.5 flex items-center space-x-3 rounded-lg border transition group text-left ${
+                tool === 'room_polygon'
+                  ? 'border-fuchsia-500 bg-fuchsia-950/50 shadow-md ring-1 ring-fuchsia-500/50'
+                  : 'border-fuchsia-900/30 bg-fuchsia-950/20 hover:bg-fuchsia-950/40'
+              }`}
+              title="Gambar bentuk ruangan bebas dengan mengklik tiap titik sudut (L, T, U, segitiga, jajar genjang, dsb)"
+            >
+              <div className="p-2 rounded-lg bg-fuchsia-500/20 text-fuchsia-400">
+                <Shapes className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-fuchsia-300">Gambar Zonasi Poligon Bebas</div>
+                <div className="text-[10px] text-slate-400">Bentuk bebas: L, T, N-Sudut berapapun</div>
               </div>
             </button>
           </div>
@@ -668,6 +744,53 @@ export const SidebarCatalog: React.FC<SidebarCatalogProps> = ({
         {/* TAB PENARIKAN KABEL */}
         {activeTab === 'kabel' && (
           <div className="space-y-3">
+            {/* Filter Tampilan Kabel di Denah */}
+            <div className="p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                <span className="flex items-center space-x-1.5">
+                  <Filter className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Filter Kabel di Denah:</span>
+                </span>
+                {visibleCableType !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectVisibleCableType?.('all')}
+                    className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => onSelectVisibleCableType?.('all')}
+                  className={`px-2 py-1 rounded text-[10px] font-semibold border transition cursor-pointer ${
+                    visibleCableType === 'all'
+                      ? 'bg-sky-500 text-white border-sky-400 shadow-sm'
+                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+                  }`}
+                >
+                  Semua
+                </button>
+                {kabelTipe.map((kt) => (
+                  <button
+                    key={kt.id}
+                    type="button"
+                    onClick={() => onSelectVisibleCableType?.(kt.id)}
+                    className={`px-2 py-1 rounded text-[10px] font-semibold border transition cursor-pointer flex items-center space-x-1 ${
+                      visibleCableType === kt.id
+                        ? 'bg-sky-500 text-white border-sky-400 shadow-sm'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: kt.warna_hex }} />
+                    <span className="truncate max-w-[70px]">{kt.nama_tipe.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="text-xs text-slate-400 font-semibold mb-1">Pilih Tipe Kabel untuk Penarikan</div>
 
             <div className="space-y-1.5">

@@ -26,7 +26,12 @@ import {
   Tag,
   Maximize2,
   X,
+  Plus,
+  Minus,
+  Shapes,
+  Grid,
 } from 'lucide-react';
+import { Point } from '../types/schema.ts';
 
 interface InspectorPanelProps {
   selectedItem: { type: string; id: string } | null;
@@ -255,6 +260,70 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       }
     };
 
+    const handleAddVertex = () => {
+      if (!onUpdateRuangan || !ruangan) return;
+      const pts = room.polygon_points || [];
+      if (pts.length < 3) return;
+      // Tambahkan titik baru di tengah antara titik 0 dan 1
+      const mid: Point = {
+        x: Math.round((pts[0].x + pts[1].x) / 2 + 20),
+        y: Math.round((pts[0].y + pts[1].y) / 2 + 20),
+      };
+      const updated = [pts[0], mid, ...pts.slice(1)];
+      onUpdateRuangan(ruangan.map((r) => (r.id === room.id ? { ...r, polygon_points: updated } : r)));
+    };
+
+    const handleRemoveVertex = () => {
+      if (!onUpdateRuangan || !ruangan) return;
+      const pts = room.polygon_points || [];
+      if (pts.length <= 3) return;
+      const updated = pts.slice(0, pts.length - 1);
+      onUpdateRuangan(ruangan.map((r) => (r.id === room.id ? { ...r, polygon_points: updated } : r)));
+    };
+
+    const handleApplyPreset = (preset: 'box' | 'l_shape' | 't_shape' | 'trapezoid') => {
+      if (!onUpdateRuangan || !ruangan) return;
+      const wPx = Math.max(100, maxX - minX);
+      const hPx = Math.max(100, maxY - minY);
+      let newPts: Point[] = [];
+      if (preset === 'box') {
+        newPts = [
+          { x: minX, y: minY },
+          { x: minX + wPx, y: minY },
+          { x: minX + wPx, y: minY + hPx },
+          { x: minX, y: minY + hPx },
+        ];
+      } else if (preset === 'l_shape') {
+        newPts = [
+          { x: minX, y: minY },
+          { x: minX + wPx, y: minY },
+          { x: minX + wPx, y: minY + hPx * 0.5 },
+          { x: minX + wPx * 0.5, y: minY + hPx * 0.5 },
+          { x: minX + wPx * 0.5, y: minY + hPx },
+          { x: minX, y: minY + hPx },
+        ];
+      } else if (preset === 't_shape') {
+        newPts = [
+          { x: minX + wPx * 0.3, y: minY },
+          { x: minX + wPx * 0.7, y: minY },
+          { x: minX + wPx * 0.7, y: minY + hPx * 0.4 },
+          { x: minX + wPx, y: minY + hPx * 0.4 },
+          { x: minX + wPx, y: minY + hPx },
+          { x: minX, y: minY + hPx },
+          { x: minX, y: minY + hPx * 0.4 },
+          { x: minX + wPx * 0.3, y: minY + hPx * 0.4 },
+        ];
+      } else if (preset === 'trapezoid') {
+        newPts = [
+          { x: minX + wPx * 0.2, y: minY },
+          { x: minX + wPx * 0.8, y: minY },
+          { x: minX + wPx, y: minY + hPx },
+          { x: minX, y: minY + hPx },
+        ];
+      }
+      onUpdateRuangan(ruangan.map((r) => (r.id === room.id ? { ...r, polygon_points: newPts } : r)));
+    };
+
     const colorPresets = [
       { name: 'Server Red', val: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },
       { name: 'Sky Office', val: 'rgba(56, 189, 248, 0.15)', border: '#38bdf8' },
@@ -357,6 +426,72 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           </div>
 
+          {/* Kelola Titik Sudut Poligon (L, T, U, N-Sudut) */}
+          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2.5">
+            <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center space-x-1.5">
+                <Shapes className="w-3.5 h-3.5 text-fuchsia-400" />
+                <span>Titik Sudut ({room.polygon_points?.length || 4} Sudut)</span>
+              </span>
+              <div className="flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={handleAddVertex}
+                  className="px-2 py-0.5 bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 rounded text-[10px] font-bold border border-fuchsia-500/40 flex items-center space-x-0.5 transition cursor-pointer"
+                  title="Tambah 1 titik sudut baru di poligon"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Sudut</span>
+                </button>
+                {(room.polygon_points?.length || 0) > 3 && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveVertex}
+                    className="px-1.5 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded text-[10px] font-bold border border-rose-500/40 flex items-center space-x-0.5 transition cursor-pointer"
+                    title="Hapus titik sudut terakhir"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="text-[10px] text-slate-400">
+              Ubah ke bentuk standar atau tarik nomor titik (1, 2, 3...) di kanvas:
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('box')}
+                className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-medium border border-slate-700/80 transition text-left cursor-pointer"
+              >
+                ⬛ Kotak (4 Titik)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('l_shape')}
+                className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 rounded-lg text-[10px] font-medium border border-slate-700/80 transition text-left cursor-pointer"
+              >
+                📐 L-Shape (6 Titik)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('t_shape')}
+                className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-[10px] font-medium border border-slate-700/80 transition text-left cursor-pointer"
+              >
+                🔲 T-Shape (8 Titik)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('trapezoid')}
+                className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-[10px] font-medium border border-slate-700/80 transition text-left cursor-pointer"
+              >
+                🔺 Trapesium / Miring
+              </button>
+            </div>
+          </div>
+
           {/* Pilihan Warna Zonasi */}
           <div>
             <label className="text-slate-400 block mb-1 font-medium flex items-center space-x-1">
@@ -390,7 +525,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             <div className="font-semibold text-sky-400 flex items-center space-x-1">
               <span>💡 Panduan Interaktif di Denah:</span>
             </div>
-            <p>• <strong>Handle Sudut Biru</strong>: Klik & drag 4 sudut ruangan langsung di denah untuk memperbesar/memperkecil ukuran.</p>
+            <p>• <strong>Titik Sudut (1..N)</strong>: Klik & drag lingkaran nomor sudut di denah untuk membentuk ruangan bersudut L, T, miring, pilar, dsb.</p>
             <p>• <strong>Bodi Ruangan</strong>: Klik & drag area tengah ruangan untuk memindahkan posisi ke ruangan lain.</p>
           </div>
         </div>
@@ -575,6 +710,139 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <option value={9}>9U (Wallmount Rack)</option>
                 <option value={6}>6U (Wallmount Mini)</option>
               </select>
+            </div>
+          )}
+
+          {/* Pengaturan Khusus Switch Network: Kapasitas Port & Routing Kabel Otomatis + Catatan Manual */}
+          {dev.kategori === 'switch' && (
+            <div className="p-3 bg-cyan-950/20 border border-cyan-800/40 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-cyan-400 flex items-center space-x-1.5">
+                  <Network className="w-3.5 h-3.5" />
+                  <span>Daftar Port & Rute Kabel</span>
+                </div>
+                <div className="text-[10px] text-cyan-300/80 bg-cyan-900/40 px-2 py-0.5 rounded-full border border-cyan-800/50">
+                  Auto-Detect + Note
+                </div>
+              </div>
+
+              {/* Pilihan Jumlah Port Switch */}
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Kapasitas Port Switch</label>
+                <select
+                  value={dev.switch_total_port || 24}
+                  onChange={(e) => handleChange('switch_total_port', parseInt(e.target.value, 10))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-500"
+                >
+                  <option value={8}>8 Port (Switch Ruangan / Edge)</option>
+                  <option value={16}>16 Port (Switch Distribusi Kecil)</option>
+                  <option value={24}>24 Port (Standar Rak Server)</option>
+                  <option value={48}>48 Port (High-Density Core/Distribution)</option>
+                </select>
+              </div>
+
+              {/* Ringkasan Port Terpakai vs Kosong */}
+              {(() => {
+                const totalPorts = dev.switch_total_port || 24;
+                const connectedCables = kabel.filter(
+                  (c) => c.perangkat_asal_id === dev.id || c.perangkat_tujuan_id === dev.id
+                );
+                const usedCount = connectedCables.length;
+                const freeCount = Math.max(0, totalPorts - usedCount);
+
+                return (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+                        <div className="text-slate-400 text-[10px]">Terhubung (Kabel)</div>
+                        <div className="text-cyan-400 font-bold text-sm">
+                          {usedCount} <span className="text-[10px] font-normal text-slate-400">Port</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+                        <div className="text-slate-400 text-[10px]">Tersedia (Kosong)</div>
+                        <div className="text-emerald-400 font-bold text-sm">
+                          {freeCount} <span className="text-[10px] font-normal text-slate-400">Port</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 leading-relaxed">
+                      💡 <strong>Sistem Hybrid Cerdas:</strong> Tujuan perangkat terdeteksi otomatis dari jalur kabel fisik. Anda dapat menambahkan catatan port (VLAN, nama ruangan, atau uplink) di bawah ini:
+                    </div>
+
+                    {/* Daftar Port 1 sampai totalPorts */}
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-slate-800/80 rounded-lg p-1.5 bg-slate-950/40">
+                      {Array.from({ length: totalPorts }, (_, idx) => {
+                        const portNum = idx + 1;
+                        const cable = connectedCables[idx];
+                        let targetDeviceName = '';
+                        let cableInfo = '';
+
+                        if (cable) {
+                          const targetId =
+                            cable.perangkat_asal_id === dev.id ? cable.perangkat_tujuan_id : cable.perangkat_asal_id;
+                          const targetDev = perangkat.find((p) => p.id === targetId);
+                          targetDeviceName = targetDev
+                            ? `${targetDev.nama_perangkat} (${targetDev.kategori})`
+                            : 'Perangkat Terpasang';
+                          const kt = kabelTipe.find((t) => t.id === cable.tipe_kabel_id);
+                          cableInfo = `${kt?.nama_tipe || 'UTP'} • ${cable.total_panjang_meter.toFixed(1)}m`;
+                        }
+
+                        const currentNote = (dev.port_notes && dev.port_notes[portNum]) || '';
+
+                        return (
+                          <div
+                            key={portNum}
+                            className="p-2 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-cyan-300 font-mono bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40">
+                                Port {portNum}
+                              </span>
+                              {cable ? (
+                                <span className="text-[9px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 px-1.5 py-0.5 rounded-full font-medium truncate max-w-[170px]">
+                                  ● {targetDeviceName}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">
+                                  Kosong (Spare)
+                                </span>
+                              )}
+                            </div>
+
+                            {cable && (
+                              <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                                <span className="truncate max-w-[110px]">{cable.kode_kabel}</span>
+                                <span className="font-mono text-slate-300">{cableInfo}</span>
+                              </div>
+                            )}
+
+                            <div>
+                              <input
+                                type="text"
+                                value={currentNote}
+                                placeholder="Note: misal VLAN 10, Keuangan, Uplink L2..."
+                                onChange={(e) => {
+                                  const updatedNotes = { ...(dev.port_notes || {}) };
+                                  if (e.target.value.trim() === '') {
+                                    delete updatedNotes[portNum];
+                                  } else {
+                                    updatedNotes[portNum] = e.target.value;
+                                  }
+                                  handleChange('port_notes', updatedNotes);
+                                }}
+                                className="w-full bg-slate-950/80 border border-slate-700/80 rounded px-2 py-1 text-slate-200 text-[11px] placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -10,6 +10,8 @@ import {
   KabelJalur,
   KabelTipe,
   Point,
+  DenahJiplakan,
+  LayerVisibility,
 } from '../types/schema.ts';
 import {
   MousePointer,
@@ -23,6 +25,8 @@ import {
   Circle,
   Cable,
   Ruler,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 
 interface PopoutCanvasViewProps {
@@ -61,6 +65,22 @@ interface PopoutCanvasViewProps {
   panOffset: Point;
   onPanChange: (offset: Point) => void;
   onDockBack: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  jiplakan?: DenahJiplakan | null;
+  onUpdateJiplakan?: (item: DenahJiplakan | null) => void;
+  onUploadJiplakan?: (file: File) => void;
+  onDeleteJiplakan?: () => void;
+  isCalibratingTracing?: boolean;
+  onStartCalibration?: () => void;
+  onCalibrationFinished?: () => void;
+  visibleCableType?: string;
+  onSelectVisibleCableType?: (id: string) => void;
+  theme?: 'dark' | 'light';
+  layerVisibility?: LayerVisibility;
+  onSelectLayerVisibility?: (layer: LayerVisibility) => void;
 }
 
 export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
@@ -99,6 +119,22 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
   panOffset,
   onPanChange,
   onDockBack,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  jiplakan,
+  onUpdateJiplakan,
+  onUploadJiplakan,
+  onDeleteJiplakan,
+  isCalibratingTracing = false,
+  onStartCalibration,
+  onCalibrationFinished,
+  visibleCableType = 'all',
+  onSelectVisibleCableType,
+  theme = 'dark',
+  layerVisibility = 'all',
+  onSelectLayerVisibility,
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -117,103 +153,116 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
       className="w-full h-full relative flex flex-col bg-slate-950 overflow-hidden select-none"
       style={{ width: '100vw', height: '100vh' }}
     >
-      {/* Floating Mini-Toolbar di Bagian Atas Kanvas Layar 2 */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-1.5 shadow-2xl space-x-2 text-xs">
-        {/* Tool Seleksi & Gambar Utama */}
-        <div className="flex items-center space-x-1 pr-2 border-r border-slate-800">
+      {/* Floating Mini-Toolbar di Bagian Atas Kanvas Layar 2 (Standar Konsisten & Sejajar) */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl px-2.5 py-1.5 shadow-2xl space-x-1.5 text-xs text-slate-200 select-none">
+        {/* Tool Seleksi & Gambar CAD (Format Ikon + Teks Seragam h-8) */}
+        <div className="flex items-center space-x-1">
           <button
             type="button"
             onClick={() => onSelectTool('select')}
-            className={`p-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'select' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'select'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
-            title="Pilih Objek (V)"
+            title="Pilih & Pindahkan Objek [V]"
           >
             <MousePointer className="w-3.5 h-3.5" />
-            <span className="font-medium text-[11px]">Pilih [V]</span>
+            <span>Pilih</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('pan')}
-            className={`p-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'pan' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'pan'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
             title="Geser Kanvas [H / Tahan Spasi]"
           >
             <Hand className="w-3.5 h-3.5" />
+            <span>Geser</span>
           </button>
-        </div>
 
-        {/* Gambar Dinding & Ruangan */}
-        <div className="flex items-center space-x-1 pr-2 border-r border-slate-800">
           <button
             type="button"
             onClick={() => onSelectTool('wall')}
-            className={`px-2 py-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'wall' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'wall'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
             title="Tarik Dinding Berantai [W]"
           >
-            <span className="text-xs">🧱</span>
-            <span className="text-[11px]">Dinding [W]</span>
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Dinding</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('wall_box')}
-            className={`px-2 py-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'wall_box' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'wall_box'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
-            title="Kotak Ruangan Sekaligus [B]"
+            title="Tarik Kotak Ruangan [B]"
           >
             <Square className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Kotak [B]</span>
+            <span>Kotak</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('wall_circle')}
-            className={`px-2 py-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'wall_circle' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'wall_circle'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
             title="Dinding Lingkaran Bulat [C]"
           >
             <Circle className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Bulat [C]</span>
+            <span>Bulat</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('cable')}
-            className={`px-2 py-1.5 rounded-lg flex items-center space-x-1 transition ${
-              tool === 'cable' ? 'bg-sky-500 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'cable'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-1 ring-sky-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
             title="Tarik Jalur Kabel Jaringan [K]"
           >
             <Cable className="w-3.5 h-3.5 text-sky-400" />
-            <span className="text-[11px]">Kabel [K]</span>
+            <span>Kabel</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTool('measure')}
-            className={`p-1.5 rounded-lg transition ${
-              tool === 'measure' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'
+            className={`h-8 px-2.5 rounded-xl flex items-center space-x-1.5 transition font-semibold text-[11px] shrink-0 cursor-pointer ${
+              tool === 'measure'
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 ring-1 ring-amber-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
             title="Ukur Jarak Berbelok Multi-Titik [M]"
           >
-            <Ruler className="w-3.5 h-3.5" />
+            <Ruler className="w-3.5 h-3.5 text-amber-400" />
+            <span>Ukur</span>
           </button>
         </div>
 
         {/* Tipe Kabel jika Tool Cable aktif */}
         {tool === 'cable' && (
-          <div className="flex items-center space-x-1 pr-2 border-r border-slate-800">
+          <div className="flex items-center pl-1 border-l border-slate-800">
             <select
               value={selectedCableTypeId}
               onChange={(e) => onSelectCableType(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded px-1.5 py-0.5 focus:outline-none"
+              className="h-8 bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded-xl px-2 focus:outline-none focus:border-sky-500"
             >
               {kabelTipe.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -224,35 +273,80 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
           </div>
         )}
 
+        <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
+
         {/* Snap & Zoom Controls */}
-        <div className="flex items-center space-x-1 pr-2 border-r border-slate-800">
+        <div className="flex items-center space-x-0.5">
           <button
             type="button"
             onClick={onToggleSnapGrid}
-            className={`p-1.5 rounded-lg text-xs flex items-center space-x-1 border transition ${
-              snapGrid ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' : 'text-slate-400 hover:bg-slate-800 border-transparent'
+            className={`h-8 w-8 rounded-xl flex items-center justify-center transition border ${
+              snapGrid
+                ? 'bg-sky-500/20 text-sky-400 border-sky-500/40'
+                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
             }`}
             title="Snap to Grid [G]"
           >
             <Grid className="w-3.5 h-3.5" />
           </button>
-          <button type="button" onClick={onZoomOut} className="p-1 hover:bg-slate-800 rounded text-slate-300" title="Zoom Out [-]">
+          <button
+            type="button"
+            onClick={onZoomOut}
+            className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            title="Zoom Out [-]"
+          >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <button type="button" onClick={onZoomReset} className="px-1.5 py-0.5 hover:bg-slate-800 rounded font-mono text-[10px]" title="Reset Zoom 100% [0]">
+          <button
+            type="button"
+            onClick={onZoomReset}
+            className="h-8 px-2 hover:bg-slate-800 rounded-xl font-mono text-[11px] text-slate-300 hover:text-white transition"
+            title="Reset Zoom 100% [0]"
+          >
             {Math.round(zoom * 100)}%
           </button>
-          <button type="button" onClick={onZoomIn} className="p-1 hover:bg-slate-800 rounded text-slate-300" title="Zoom In [+ / =]">
+          <button
+            type="button"
+            onClick={onZoomIn}
+            className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            title="Zoom In [+ / =]"
+          >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
         </div>
 
+        <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
+
+        {/* Undo & Redo Controls */}
+        <div className="flex items-center space-x-0.5">
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="h-8 w-8 flex items-center justify-center hover:bg-slate-800 disabled:opacity-25 disabled:hover:bg-transparent rounded-xl text-slate-300 transition cursor-pointer"
+            title="Undo / Batalkan [Ctrl+Z]"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="h-8 w-8 flex items-center justify-center hover:bg-slate-800 disabled:opacity-25 disabled:hover:bg-transparent rounded-xl text-slate-300 transition cursor-pointer"
+            title="Redo / Ulangi [Ctrl+Y / Ctrl+Shift+Z]"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
+
         {/* Action Layar Penuh & Kembalikan ke Layar 1 */}
-        <div className="flex items-center space-x-1 pl-1">
+        <div className="flex items-center space-x-1.5 pl-0.5">
           <button
             type="button"
             onClick={handleToggleFullScreen}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition"
+            className="h-8 w-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-amber-400 rounded-xl transition cursor-pointer"
             title="Layar Penuh (F11)"
           >
             <Maximize2 className="w-3.5 h-3.5" />
@@ -260,10 +354,10 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
           <button
             type="button"
             onClick={onDockBack}
-            className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-medium text-[11px] flex items-center space-x-1 transition shadow"
+            className="h-8 px-3.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold text-[11px] flex items-center space-x-1.5 transition shadow-md shadow-sky-600/25 whitespace-nowrap cursor-pointer"
             title="Kembalikan Kanvas ke Jendela Utama Layar 1"
           >
-            <ArrowDownLeft className="w-3.5 h-3.5" />
+            <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
             <span>Kembali ke Layar 1</span>
           </button>
         </div>
@@ -300,6 +394,17 @@ export const PopoutCanvasView: React.FC<PopoutCanvasViewProps> = ({
           zoom={zoom}
           panOffset={panOffset}
           onPanChange={onPanChange}
+          jiplakan={jiplakan}
+          onUpdateJiplakan={onUpdateJiplakan}
+          onUploadJiplakan={onUploadJiplakan}
+          isCalibratingTracing={isCalibratingTracing}
+          onCalibrationFinished={onCalibrationFinished}
+          isPopout={true}
+          visibleCableType={visibleCableType}
+          onSelectVisibleCableType={onSelectVisibleCableType}
+          theme={theme}
+          layerVisibility={layerVisibility}
+          onSelectLayerVisibility={onSelectLayerVisibility}
         />
       </div>
     </div>

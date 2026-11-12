@@ -3,6 +3,7 @@ export type ToolType =
   | 'pan'
   | 'wall'
   | 'wall_box'
+  | 'wall_l_shape'
   | 'wall_circle'
   | 'door'
   | 'window'
@@ -10,7 +11,10 @@ export type ToolType =
   | 'cable'
   | 'place_furniture'
   | 'place_device'
-  | 'place_room';
+  | 'place_room'
+  | 'room_polygon';
+
+export type LayerVisibility = 'all' | 'dinding' | 'ruangan' | 'kabel' | 'perangkat' | 'furniture';
 
 export interface Point {
   x: number;
@@ -113,6 +117,9 @@ export interface Perangkat {
   ap_radius_meter?: number; // Radius sinyal Wi-Fi (default 12 meter)
   // Spesifik Server Rack
   rack_total_u?: number; // misal 42U
+  // Spesifik Switch Network
+  switch_total_port?: number; // Jumlah total port switch (8, 16, 24, 48)
+  port_notes?: Record<number, string>; // Catatan / label / VLAN per nomor port switch
   status: 'aktif' | 'maintenance' | 'rencana';
 }
 
@@ -152,3 +159,19 @@ export interface DimensionLine {
   y2: number;
   distance_meter: number;
 }
+
+export interface DenahJiplakan {
+  id: string;
+  lantai_id: string;
+  image_url: string; // Base64 Data URL atau URL gambar referensi
+  posisi_x: number;  // Posisi X di kanvas CAD (world)
+  posisi_y: number;  // Posisi Y di kanvas CAD (world)
+  lebar_px: number;  // Lebar dasar gambar (px)
+  tinggi_px: number; // Tinggi dasar gambar (px)
+  skala: number;     // Skala perbesaran (1.0 = 100%)
+  rotasi: number;    // Rotasi dalam derajat (0, 90, 180, 270)
+  opacity: number;   // Tingkat transparansi (0.1 - 1.0)
+  is_locked: boolean; // True jika terkunci agar tidak tergeser saat menggambar
+  is_visible: boolean; // True jika ditampilkan di kanvas
+}
+

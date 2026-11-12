@@ -139,6 +139,49 @@ export const PopoutWindow: React.FC<PopoutWindowProps> = ({ title, onClose, chil
     }
     setContainerEl(rootEl);
 
+    // Teruskan shortcut keyboard (keydown & keyup) dari Layar 2 ke Jendela Utama
+    const handleDualScreenKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select') {
+        return;
+      }
+      const forwardedEvent = new KeyboardEvent('keydown', {
+        key: e.key,
+        code: e.code,
+        location: e.location,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        repeat: e.repeat,
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(forwardedEvent);
+      if (forwardedEvent.defaultPrevented) {
+        e.preventDefault();
+      }
+    };
+
+    const handleDualScreenKeyUp = (e: KeyboardEvent) => {
+      const forwardedEvent = new KeyboardEvent('keyup', {
+        key: e.key,
+        code: e.code,
+        location: e.location,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        repeat: e.repeat,
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(forwardedEvent);
+    };
+
+    dualScreenWindow.addEventListener('keydown', handleDualScreenKeyDown);
+    dualScreenWindow.addEventListener('keyup', handleDualScreenKeyUp);
+
     // Deteksi penutupan jendela melalui timer polling interval (sangat stabil di Firefox & Chrome)
     const checkClosedInterval = setInterval(() => {
       if (dualScreenWindow.closed) {
@@ -149,6 +192,10 @@ export const PopoutWindow: React.FC<PopoutWindowProps> = ({ title, onClose, chil
 
     return () => {
       clearInterval(checkClosedInterval);
+      try {
+        dualScreenWindow.removeEventListener('keydown', handleDualScreenKeyDown);
+        dualScreenWindow.removeEventListener('keyup', handleDualScreenKeyUp);
+      } catch {}
       if (!dualScreenWindow.closed) {
         dualScreenWindow.close();
       }

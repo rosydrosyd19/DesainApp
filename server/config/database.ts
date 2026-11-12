@@ -144,6 +144,8 @@ export async function initDatabase() {
         cctv_jarak_meter DOUBLE DEFAULT 12.0,
         ap_radius_meter DOUBLE DEFAULT 12.0,
         rack_total_u INT DEFAULT 42,
+        switch_total_port INT DEFAULT 24,
+        port_notes LONGTEXT,
         status VARCHAR(30) DEFAULT 'aktif',
         INDEX idx_lantai (lantai_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -180,6 +182,38 @@ export async function initDatabase() {
         INDEX idx_tipe (tipe_kabel_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // MODUL 6: GAMBAR REFERENSI JIPLAKAN DENAH (TRACING UNDERLAY)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS denah_jiplakan (
+        id VARCHAR(50) PRIMARY KEY,
+        lantai_id VARCHAR(50) NOT NULL,
+        image_url LONGTEXT NOT NULL,
+        posisi_x DOUBLE DEFAULT 0.0,
+        posisi_y DOUBLE DEFAULT 0.0,
+        lebar_px DOUBLE DEFAULT 800.0,
+        tinggi_px DOUBLE DEFAULT 600.0,
+        skala DOUBLE DEFAULT 1.0,
+        rotasi DOUBLE DEFAULT 0.0,
+        opacity DOUBLE DEFAULT 0.5,
+        is_locked TINYINT DEFAULT 0,
+        is_visible TINYINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_lantai (lantai_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Modul Migrasi Kolom Otomatis untuk tabel yang sudah ada
+    try {
+      await pool.query('ALTER TABLE perangkat_terpasang ADD COLUMN switch_total_port INT DEFAULT 24');
+    } catch {
+      // Kolom mungkin sudah ada, abaikan
+    }
+    try {
+      await pool.query('ALTER TABLE perangkat_terpasang ADD COLUMN port_notes LONGTEXT');
+    } catch {
+      // Kolom mungkin sudah ada, abaikan
+    }
 
     // 4. Seed Data Dasar Tipe Kabel
     await seedKabelTipe();
